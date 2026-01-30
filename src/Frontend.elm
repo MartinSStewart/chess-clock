@@ -87,7 +87,11 @@ update msg model =
                                     ( Paused { editing = Nothing }, model.player1Time, model.player2Time )
 
                                 Nothing ->
-                                    ( Running player, model.player1Time, model.player2Time )
+                                    if model.player1Time > 0 && model.player2Time > 0 then
+                                        ( Running player, model.player1Time, model.player2Time )
+
+                                    else
+                                        ( Paused { editing = Nothing }, model.player1Time, model.player2Time )
 
                         Running Player1 ->
                             -- Player 1 finished turn, add increment to their time
@@ -97,11 +101,7 @@ update msg model =
                             -- Player 2 finished turn, add increment to their time
                             ( Running Player1, model.player1Time, model.player2Time + model.increment )
             in
-            ( { model
-                | mode = mode
-                , player1Time = newPlayer1Time
-                , player2Time = newPlayer2Time
-              }
+            ( { model | mode = mode, player1Time = newPlayer1Time, player2Time = newPlayer2Time }
             , Cmd.none
             )
 
@@ -146,7 +146,7 @@ update msg model =
                                 Player2 ->
                                     model.player2Time
                     in
-                    { model | mode = Paused { paused | editing = Just ( player, formatTimeForInput currentTime ) } }
+                    { model | mode = Paused { paused | editing = Just ( player, formatTime currentTime ) } }
 
                 Running _ ->
                     model
@@ -187,10 +187,10 @@ update msg model =
                                 ( newPlayer1Time, newPlayer2Time ) =
                                     case player of
                                         Player1 ->
-                                            ( Maybe.withDefault model.player1Time newTime, model.player2Time )
+                                            ( Maybe.withDefault model.player1Time newTime |> max 0, model.player2Time )
 
                                         Player2 ->
-                                            ( model.player1Time, Maybe.withDefault model.player2Time newTime )
+                                            ( model.player1Time, Maybe.withDefault model.player2Time newTime |> max 0 )
                             in
                             { model
                                 | player1Time = newPlayer1Time
@@ -231,11 +231,12 @@ update msg model =
                 , player2Time = newPlayer2Time
                 , lastTick = currentTime
                 , mode =
-                    if newPlayer1Time <= 0 || newPlayer2Time <= 0 then
-                        Paused { editing = Nothing }
+                    case ( newPlayer1Time <= 0 || newPlayer2Time <= 0, model.mode ) of
+                        ( True, Running _ ) ->
+                            Paused { editing = Nothing }
 
-                    else
-                        model.mode
+                        _ ->
+                            model.mode
               }
             , Cmd.none
             )
@@ -267,27 +268,15 @@ formatTime millis =
             else
                 String.fromInt n
     in
-    padZero minutes ++ ":" ++ padZero seconds
-
-
-formatTimeForInput : Int -> String
-formatTimeForInput millis =
-    let
-        totalSeconds =
-            millis // 1000
-
-        minutes =
-            totalSeconds // 60
-
-        seconds =
-            modBy 60 totalSeconds
-    in
-    String.fromInt minutes ++ ":" ++ String.padLeft 2 '0' (String.fromInt seconds)
+    String.fromInt minutes ++ ":" ++ padZero seconds
 
 
 parseTimeInput : String -> Maybe Int
 parseTimeInput input =
-    case String.split ":" input of
+    case String.split ":" input |> List.map String.trim of
+        [ "", secStr ] ->
+            Maybe.map (\s -> s * 1000) (String.toInt secStr)
+
         [ minStr, secStr ] ->
             Maybe.map2
                 (\m s -> (m * 60 + s) * 1000)
@@ -410,30 +399,6 @@ viewTimer model player =
 
                 Player2 ->
                     ( model.player2Time, "Player 2", model.mode == Running Player2 )
-
-        backgroundColor =
-            if time == 0 then
-                "#ff4444"
-
-            else if isActive then
-                "#4CAF50"
-
-            else
-                "#333"
-
-        textColor =
-            "#fff"
-
-        isPaused =
-            case model.mode of
-                Paused _ ->
-                    True
-
-                Running _ ->
-                    False
-
-        showTapToStart =
-            isPaused && time > 0
     in
     Html.div
         [ Attr.style "flex" "1"
@@ -441,94 +406,98 @@ viewTimer model player =
         , Attr.style "flex-direction" "column"
         , Attr.style "justify-content" "center"
         , Attr.style "align-items" "center"
-        , Attr.style "background-color" backgroundColor
-        , Attr.style "color" textColor
+        , Attr.style
+            "background-color"
+            (if time == 0 then
+                "#ff4444"
+
+             else if isActive then
+                "#4CAF50"
+
+             else
+                "#333"
+            )
+        , Attr.style "color" "#fff"
         , Attr.style "cursor" "pointer"
         , Attr.style "transition" "background-color 0.2s"
         , Events.onClick (PlayerClicked player)
         ]
-        [ Html.div
-            [ Attr.style "font-size" "24px"
-            , Attr.style "margin-bottom" "10px"
-            , Attr.style "opacity" "0.8"
-            ]
-            [ Html.text label ]
-        , case model.mode of
-            Paused paused ->
-                case paused.editing of
-                    Just ( editingPlayer, value ) ->
-                        if editingPlayer == player then
-                            Html.input
-                                [ Attr.type_ "text"
-                                , Attr.value value
-                                , Attr.style "font-size" "80px"
-                                , Attr.style "font-weight" "bold"
-                                , Attr.style "font-family" "monospace"
-                                , Attr.style "width" "280px"
-                                , Attr.style "text-align" "center"
-                                , Attr.style "background-color" "rgba(255,255,255,0.2)"
-                                , Attr.style "border" "2px solid #fff"
-                                , Attr.style "border-radius" "8px"
-                                , Attr.style "color" "#fff"
-                                , Attr.style "padding" "10px"
-                                , Events.onInput TimeInputChanged
-                                , Events.onBlur TimeInputBlurred
-                                , Events.stopPropagationOn "click" (Json.succeed ( NoOpFrontendMsg, True ))
-                                ]
-                                []
-
-                        else
-                            Html.div
-                                [ Attr.style "font-size" "80px"
-                                , Attr.style "font-weight" "bold"
-                                , Attr.style "cursor" "text"
-                                , Attr.style "padding" "10px 20px"
-                                , Attr.style "border-radius" "8px"
-                                , Attr.style "transition" "background-color 0.2s"
-                                , Events.stopPropagationOn "click" (Json.succeed ( TimeClicked player, True ))
-                                ]
-                                [ Html.text (formatTime time) ]
-
-                    Nothing ->
-                        Html.div
-                            [ Attr.style "font-size" "80px"
-                            , Attr.style "font-weight" "bold"
-                            , Attr.style "cursor" "text"
-                            , Attr.style "padding" "10px 20px"
-                            , Attr.style "border-radius" "8px"
-                            , Attr.style "transition" "background-color 0.2s"
-                            , Events.stopPropagationOn "click" (Json.succeed ( TimeClicked player, True ))
-                            ]
-                            [ Html.text (formatTime time) ]
-
-            Running _ ->
-                Html.div
-                    [ Attr.style "font-size" "80px"
-                    , Attr.style "font-weight" "bold"
-                    ]
-                    [ Html.text (formatTime time) ]
-        , if showTapToStart then
+        ((if time > 0 then
             Html.div
-                [ Attr.style "margin-top" "20px"
-                , Attr.style "font-size" "16px"
-                , Attr.style "opacity" "0.7"
+                [ Attr.style "font-size" "24px"
+                , Attr.style "margin-bottom" "10px"
+                , Attr.style "opacity" "0.8"
                 ]
-                [ Html.text "Tap to start" ]
-            --else if showTapToResume then
-            --  Html.div
-            --      [ Attr.style "margin-top" "20px"
-            --      , Attr.style "font-size" "16px"
-            --      , Attr.style "opacity" "0.7"
-            --      ]
-            --      [ Html.text "Tap to resume" ]
-            --else if model.activePlayer == Nothing && time > 0 && not isEditingThis then
-            --  Html.div
-            --      [ Attr.style "margin-top" "20px"
-            --      , Attr.style "font-size" "16px"
-            --      , Attr.style "opacity" "0.7"
-            --      ]
-            --      [ Html.text "Click time to edit" ]
+                [ Html.text label ]
 
           else
             Html.text ""
-        ]
+         )
+            :: (case model.mode of
+                    Paused paused ->
+                        [ case paused.editing of
+                            Just ( editingPlayer, value ) ->
+                                if editingPlayer == player then
+                                    Html.input
+                                        [ Attr.type_ "text"
+                                        , Attr.value value
+                                        , Attr.style "font-size" "80px"
+                                        , Attr.style "font-weight" "bold"
+                                        , Attr.style "font-family" "monospace"
+                                        , Attr.style "width" "280px"
+                                        , Attr.style "text-align" "center"
+                                        , Attr.style "background-color" "rgba(255,255,255,0.2)"
+                                        , Attr.style "border" "2px solid #fff"
+                                        , Attr.style "border-radius" "8px"
+                                        , Attr.style "color" "#fff"
+                                        , Attr.style "padding" "10px"
+                                        , Events.onInput TimeInputChanged
+                                        , Events.onBlur TimeInputBlurred
+                                        , Events.stopPropagationOn "click" (Json.succeed ( NoOpFrontendMsg, True ))
+                                        ]
+                                        []
+
+                                else
+                                    Html.div
+                                        [ Attr.style "font-size" "80px"
+                                        , Attr.style "font-weight" "bold"
+                                        , Attr.style "cursor" "text"
+                                        , Attr.style "padding" "10px 20px"
+                                        , Attr.style "border-radius" "8px"
+                                        , Attr.style "transition" "background-color 0.2s"
+                                        , Events.stopPropagationOn "click" (Json.succeed ( TimeClicked player, True ))
+                                        ]
+                                        [ Html.text (formatTime time) ]
+
+                            Nothing ->
+                                Html.div
+                                    [ Attr.style "font-size" "80px"
+                                    , Attr.style "font-weight" "bold"
+                                    , Attr.style "cursor" "text"
+                                    , Attr.style "padding" "10px 20px"
+                                    , Attr.style "border-radius" "8px"
+                                    , Attr.style "transition" "background-color 0.2s"
+                                    , Events.stopPropagationOn "click" (Json.succeed ( TimeClicked player, True ))
+                                    ]
+                                    [ Html.text (formatTime time) ]
+                        , if model.player1Time > 0 && model.player2Time > 0 then
+                            Html.div
+                                [ Attr.style "margin-top" "20px"
+                                , Attr.style "font-size" "16px"
+                                , Attr.style "opacity" "0.7"
+                                ]
+                                [ Html.text "Tap to start" ]
+
+                          else
+                            Html.text ""
+                        ]
+
+                    Running _ ->
+                        [ Html.div
+                            [ Attr.style "font-size" "80px"
+                            , Attr.style "font-weight" "bold"
+                            ]
+                            [ Html.text (formatTime time) ]
+                        ]
+               )
+        )
