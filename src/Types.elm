@@ -18,6 +18,10 @@ type alias FrontendModel =
     , activePlayer : Maybe Player -- which timer is running, Nothing if paused/stopped
     , lastTick : Time.Posix -- last time we updated
     , isPaused : Bool -- True if game was started but is now paused
+    , increment : Int -- time increment in milliseconds
+    , incrementInput : String -- text input for increment setting
+    , editingTime : Maybe Player -- which player's time is being edited
+    , timeInput : String -- text input for time editing
     }
 
 
@@ -34,6 +38,10 @@ type FrontendMsg
     | Tick Time.Posix
     | Pause
     | Reset
+    | IncrementInputChanged String
+    | TimeClicked Player
+    | TimeInputChanged String
+    | TimeInputBlurred
 
 
 type ToBackend
