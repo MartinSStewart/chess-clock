@@ -294,7 +294,7 @@ view : FrontendModel -> Browser.Document FrontendMsg
 view model =
     { title = "Chess Clock"
     , body =
-        [ Html.node "style" [] [ Html.text ("body { margin: 0; padding: 0; background-color: #" ++ inactiveColor ++ "; }") ]
+        [ Html.node "style" [] [ Html.text ("body { margin: 0; padding: 0; background-color: " ++ inactiveColor ++ "; }") ]
         , Html.div
             [ Attr.style "display" "flex"
             , Attr.style "flex-direction" "column"
@@ -351,6 +351,7 @@ viewControls model =
                     [ Attr.style "display" "flex"
                     , Attr.style "align-items" "center"
                     , Attr.style "gap" "8px"
+                    , Attr.style "background-color" "rgba(255,255,255,0.1)"
                     , Attr.style "padding" "10px 15px"
                     , Attr.style "border-radius" "8px"
                     ]
@@ -397,7 +398,7 @@ viewControls model =
 
 inactiveColor : String
 inactiveColor =
-    "1a1a1a"
+    "#1a1a1a"
 
 
 viewTimer : FrontendModel -> Player -> Html FrontendMsg
