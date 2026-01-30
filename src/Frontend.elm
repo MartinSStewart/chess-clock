@@ -41,6 +41,7 @@ init url key =
       , player2Time = initialTime
       , activePlayer = Nothing
       , lastTick = Time.millisToPosix 0
+      , isPaused = False
       }
     , Cmd.none
     )
@@ -77,12 +78,13 @@ update msg model =
         NoOpFrontendMsg ->
             ( model, Cmd.none )
 
-        SwitchPlayer ->
+        PlayerClicked player ->
             let
                 newActivePlayer =
                     case model.activePlayer of
                         Nothing ->
-                            Just Player1
+                            -- Start with the clicked player's timer
+                            Just player
 
                         Just Player1 ->
                             Just Player2
@@ -90,7 +92,23 @@ update msg model =
                         Just Player2 ->
                             Just Player1
             in
-            ( { model | activePlayer = newActivePlayer }
+            ( { model | activePlayer = newActivePlayer, isPaused = False }
+            , Cmd.none
+            )
+
+        Pause ->
+            ( { model | activePlayer = Nothing, isPaused = True }
+            , Cmd.none
+            )
+
+        Reset ->
+            ( { model
+                | player1Time = initialTime
+                , player2Time = initialTime
+                , activePlayer = Nothing
+                , lastTick = Time.millisToPosix 0
+                , isPaused = False
+              }
             , Cmd.none
             )
 
@@ -174,13 +192,65 @@ view model =
             , Attr.style "padding" "0"
             , Attr.style "font-family" "monospace"
             , Attr.style "user-select" "none"
-            , Events.onClick SwitchPlayer
+            , Attr.style "position" "relative"
             ]
             [ viewTimer model Player1
             , viewTimer model Player2
+            , viewControls model
             ]
         ]
     }
+
+
+viewControls : Model -> Html FrontendMsg
+viewControls model =
+    let
+        gameRunning =
+            model.activePlayer /= Nothing
+
+        gameStartedOrPaused =
+            gameRunning || model.isPaused
+    in
+    Html.div
+        [ Attr.style "position" "absolute"
+        , Attr.style "bottom" "20px"
+        , Attr.style "right" "20px"
+        , Attr.style "display" "flex"
+        , Attr.style "gap" "10px"
+        ]
+        [ if gameRunning then
+            Html.button
+                [ Attr.style "padding" "15px 25px"
+                , Attr.style "font-size" "18px"
+                , Attr.style "background-color" "#ff9800"
+                , Attr.style "color" "#fff"
+                , Attr.style "border" "none"
+                , Attr.style "border-radius" "8px"
+                , Attr.style "cursor" "pointer"
+                , Attr.style "font-family" "monospace"
+                , Events.onClick Pause
+                ]
+                [ Html.text "Pause" ]
+
+          else
+            Html.text ""
+        , if model.isPaused then
+            Html.button
+                [ Attr.style "padding" "15px 25px"
+                , Attr.style "font-size" "18px"
+                , Attr.style "background-color" "#2196F3"
+                , Attr.style "color" "#fff"
+                , Attr.style "border" "none"
+                , Attr.style "border-radius" "8px"
+                , Attr.style "cursor" "pointer"
+                , Attr.style "font-family" "monospace"
+                , Events.onClick Reset
+                ]
+                [ Html.text "Reset" ]
+
+          else
+            Html.text ""
+        ]
 
 
 viewTimer : Model -> Player -> Html FrontendMsg
@@ -206,6 +276,12 @@ viewTimer model player =
 
         textColor =
             "#fff"
+
+        showTapToStart =
+            model.activePlayer == Nothing && not model.isPaused && time > 0
+
+        showTapToResume =
+            model.isPaused && time > 0
     in
     Html.div
         [ Attr.style "flex" "1"
@@ -217,6 +293,7 @@ viewTimer model player =
         , Attr.style "color" textColor
         , Attr.style "cursor" "pointer"
         , Attr.style "transition" "background-color 0.2s"
+        , Events.onClick (PlayerClicked player)
         ]
         [ Html.div
             [ Attr.style "font-size" "24px"
@@ -229,13 +306,21 @@ viewTimer model player =
             , Attr.style "font-weight" "bold"
             ]
             [ Html.text (formatTime time) ]
-        , if model.activePlayer == Nothing && time > 0 then
+        , if showTapToStart then
             Html.div
                 [ Attr.style "margin-top" "20px"
                 , Attr.style "font-size" "16px"
                 , Attr.style "opacity" "0.7"
                 ]
                 [ Html.text "Tap to start" ]
+
+          else if showTapToResume then
+            Html.div
+                [ Attr.style "margin-top" "20px"
+                , Attr.style "font-size" "16px"
+                , Attr.style "opacity" "0.7"
+                ]
+                [ Html.text "Tap to resume" ]
 
           else
             Html.text ""

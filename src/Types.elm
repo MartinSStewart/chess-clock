@@ -15,8 +15,9 @@ type alias FrontendModel =
     { key : Key
     , player1Time : Int -- milliseconds remaining
     , player2Time : Int -- milliseconds remaining
-    , activePlayer : Maybe Player -- which timer is running, Nothing if not started
+    , activePlayer : Maybe Player -- which timer is running, Nothing if paused/stopped
     , lastTick : Time.Posix -- last time we updated
+    , isPaused : Bool -- True if game was started but is now paused
     }
 
 
@@ -29,8 +30,10 @@ type FrontendMsg
     = UrlClicked UrlRequest
     | UrlChanged Url
     | NoOpFrontendMsg
-    | SwitchPlayer
+    | PlayerClicked Player
     | Tick Time.Posix
+    | Pause
+    | Reset
 
 
 type ToBackend
