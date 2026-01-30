@@ -15,14 +15,16 @@ type alias FrontendModel =
     { key : Key
     , player1Time : Int -- milliseconds remaining
     , player2Time : Int -- milliseconds remaining
-    , activePlayer : Maybe Player -- which timer is running, Nothing if paused/stopped
+    , mode : Mode
     , lastTick : Time.Posix -- last time we updated
-    , isPaused : Bool -- True if game was started but is now paused
     , increment : Int -- time increment in milliseconds
     , incrementInput : String -- text input for increment setting
-    , editingTime : Maybe Player -- which player's time is being edited
-    , timeInput : String -- text input for time editing
     }
+
+
+type Mode
+    = Paused { editing : Maybe ( Player, String ) }
+    | Running Player
 
 
 type alias BackendModel =

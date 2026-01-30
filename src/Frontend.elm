@@ -13,10 +13,6 @@ import Types exposing (..)
 import Url
 
 
-type alias Model =
-    FrontendModel
-
-
 initialTime : Int
 initialTime =
     -- 5 minutes in milliseconds
@@ -41,34 +37,26 @@ defaultIncrement =
     5 * 1000
 
 
-init : Url.Url -> Nav.Key -> ( Model, Cmd FrontendMsg )
+init : Url.Url -> Nav.Key -> ( FrontendModel, Cmd FrontendMsg )
 init url key =
     ( { key = key
       , player1Time = initialTime
       , player2Time = initialTime
-      , activePlayer = Nothing
+      , mode = Paused { editing = Nothing }
       , lastTick = Time.millisToPosix 0
-      , isPaused = False
       , increment = defaultIncrement
       , incrementInput = "5"
-      , editingTime = Nothing
-      , timeInput = ""
       }
     , Cmd.none
     )
 
 
-subscriptions : Model -> Sub FrontendMsg
+subscriptions : FrontendModel -> Sub FrontendMsg
 subscriptions model =
-    case model.activePlayer of
-        Just _ ->
-            Time.every 100 Tick
-
-        Nothing ->
-            Sub.none
+    Time.every 100 Tick
 
 
-update : FrontendMsg -> Model -> ( Model, Cmd FrontendMsg )
+update : FrontendMsg -> FrontendModel -> ( FrontendModel, Cmd FrontendMsg )
 update msg model =
     case msg of
         UrlClicked urlRequest ->
@@ -91,23 +79,26 @@ update msg model =
 
         PlayerClicked player ->
             let
-                ( newActivePlayer, newPlayer1Time, newPlayer2Time ) =
-                    case model.activePlayer of
-                        Nothing ->
-                            -- Start with the clicked player's timer (no increment on start)
-                            ( Just player, model.player1Time, model.player2Time )
+                ( mode, newPlayer1Time, newPlayer2Time ) =
+                    case model.mode of
+                        Paused paused ->
+                            case paused.editing of
+                                Just _ ->
+                                    ( Paused { editing = Nothing }, model.player1Time, model.player2Time )
 
-                        Just Player1 ->
+                                Nothing ->
+                                    ( Running player, model.player1Time, model.player2Time )
+
+                        Running Player1 ->
                             -- Player 1 finished turn, add increment to their time
-                            ( Just Player2, model.player1Time + model.increment, model.player2Time )
+                            ( Running Player2, model.player1Time + model.increment, model.player2Time )
 
-                        Just Player2 ->
+                        Running Player2 ->
                             -- Player 2 finished turn, add increment to their time
-                            ( Just Player1, model.player1Time, model.player2Time + model.increment )
+                            ( Running Player1, model.player1Time, model.player2Time + model.increment )
             in
             ( { model
-                | activePlayer = newActivePlayer
-                , isPaused = False
+                | mode = mode
                 , player1Time = newPlayer1Time
                 , player2Time = newPlayer2Time
               }
@@ -115,7 +106,7 @@ update msg model =
             )
 
         Pause ->
-            ( { model | activePlayer = Nothing, isPaused = True }
+            ( { model | mode = Paused { editing = Nothing } }
             , Cmd.none
             )
 
@@ -123,11 +114,7 @@ update msg model =
             ( { model
                 | player1Time = initialTime
                 , player2Time = initialTime
-                , activePlayer = Nothing
-                , lastTick = Time.millisToPosix 0
-                , isPaused = False
-                , editingTime = Nothing
-                , timeInput = ""
+                , mode = Paused { editing = Nothing }
               }
             , Cmd.none
             )
@@ -147,54 +134,80 @@ update msg model =
             )
 
         TimeClicked player ->
-            let
-                currentTime =
-                    case player of
-                        Player1 ->
-                            model.player1Time
+            ( case model.mode of
+                Paused paused ->
+                    let
+                        currentTime : Int
+                        currentTime =
+                            case player of
+                                Player1 ->
+                                    model.player1Time
 
-                        Player2 ->
-                            model.player2Time
+                                Player2 ->
+                                    model.player2Time
+                    in
+                    { model | mode = Paused { paused | editing = Just ( player, formatTimeForInput currentTime ) } }
 
-                timeString =
-                    formatTimeForInput currentTime
-            in
-            ( { model | editingTime = Just player, timeInput = timeString }
+                Running _ ->
+                    model
             , Cmd.none
             )
 
         TimeInputChanged value ->
-            ( { model | timeInput = value }
+            ( { model
+                | mode =
+                    case model.mode of
+                        Paused paused ->
+                            { paused
+                                | editing =
+                                    case paused.editing of
+                                        Just ( player, _ ) ->
+                                            Just ( player, value )
+
+                                        Nothing ->
+                                            Nothing
+                            }
+                                |> Paused
+
+                        Running _ ->
+                            model.mode
+              }
             , Cmd.none
             )
 
         TimeInputBlurred ->
-            let
-                newTime =
-                    parseTimeInput model.timeInput
+            ( case model.mode of
+                Paused paused ->
+                    case paused.editing of
+                        Just ( player, value ) ->
+                            let
+                                newTime =
+                                    parseTimeInput value
 
-                ( newPlayer1Time, newPlayer2Time ) =
-                    case model.editingTime of
-                        Just Player1 ->
-                            ( Maybe.withDefault model.player1Time newTime, model.player2Time )
+                                ( newPlayer1Time, newPlayer2Time ) =
+                                    case player of
+                                        Player1 ->
+                                            ( Maybe.withDefault model.player1Time newTime, model.player2Time )
 
-                        Just Player2 ->
-                            ( model.player1Time, Maybe.withDefault model.player2Time newTime )
+                                        Player2 ->
+                                            ( model.player1Time, Maybe.withDefault model.player2Time newTime )
+                            in
+                            { model
+                                | player1Time = newPlayer1Time
+                                , player2Time = newPlayer2Time
+                            }
 
                         Nothing ->
-                            ( model.player1Time, model.player2Time )
-            in
-            ( { model
-                | player1Time = newPlayer1Time
-                , player2Time = newPlayer2Time
-                , editingTime = Nothing
-                , timeInput = ""
-              }
+                            model
+
+                Running _ ->
+                    model
             , Cmd.none
             )
 
         Tick currentTime ->
             let
+                elapsed : Int
                 elapsed =
                     if Time.posixToMillis model.lastTick == 0 then
                         0
@@ -203,35 +216,32 @@ update msg model =
                         Time.posixToMillis currentTime - Time.posixToMillis model.lastTick
 
                 ( newPlayer1Time, newPlayer2Time ) =
-                    case model.activePlayer of
-                        Just Player1 ->
+                    case model.mode of
+                        Running Player1 ->
                             ( max 0 (model.player1Time - elapsed), model.player2Time )
 
-                        Just Player2 ->
+                        Running Player2 ->
                             ( model.player1Time, max 0 (model.player2Time - elapsed) )
 
-                        Nothing ->
+                        Paused _ ->
                             ( model.player1Time, model.player2Time )
-
-                -- Stop the clock if time runs out
-                newActivePlayer =
-                    if newPlayer1Time == 0 || newPlayer2Time == 0 then
-                        Nothing
-
-                    else
-                        model.activePlayer
             in
             ( { model
                 | player1Time = newPlayer1Time
                 , player2Time = newPlayer2Time
                 , lastTick = currentTime
-                , activePlayer = newActivePlayer
+                , mode =
+                    if newPlayer1Time <= 0 || newPlayer2Time <= 0 then
+                        Paused { editing = Nothing }
+
+                    else
+                        model.mode
               }
             , Cmd.none
             )
 
 
-updateFromBackend : ToFrontend -> Model -> ( Model, Cmd FrontendMsg )
+updateFromBackend : ToFrontend -> FrontendModel -> ( FrontendModel, Cmd FrontendMsg )
 updateFromBackend msg model =
     case msg of
         NoOpToFrontend ->
@@ -291,7 +301,7 @@ parseTimeInput input =
             Nothing
 
 
-view : Model -> Browser.Document FrontendMsg
+view : FrontendModel -> Browser.Document FrontendMsg
 view model =
     { title = "Chess Clock"
     , body =
@@ -314,12 +324,8 @@ view model =
     }
 
 
-viewControls : Model -> Html FrontendMsg
+viewControls : FrontendModel -> Html FrontendMsg
 viewControls model =
-    let
-        gameRunning =
-            model.activePlayer /= Nothing
-    in
     Html.div
         [ Attr.style "position" "absolute"
         , Attr.style "bottom" "20px"
@@ -328,88 +334,82 @@ viewControls model =
         , Attr.style "gap" "10px"
         , Attr.style "align-items" "center"
         ]
-        [ if model.isPaused then
-            Html.div
-                [ Attr.style "display" "flex"
-                , Attr.style "align-items" "center"
-                , Attr.style "gap" "8px"
-                , Attr.style "background-color" "rgba(255,255,255,0.1)"
-                , Attr.style "padding" "10px 15px"
-                , Attr.style "border-radius" "8px"
-                ]
-                [ Html.span
-                    [ Attr.style "color" "#fff"
-                    , Attr.style "font-size" "14px"
-                    ]
-                    [ Html.text "Increment:" ]
-                , Html.input
-                    [ Attr.type_ "number"
-                    , Attr.value model.incrementInput
-                    , Attr.style "width" "50px"
-                    , Attr.style "padding" "8px"
-                    , Attr.style "font-size" "16px"
-                    , Attr.style "font-family" "monospace"
+        (case model.mode of
+            Running _ ->
+                [ Html.button
+                    [ Attr.style "padding" "15px 25px"
+                    , Attr.style "font-size" "18px"
+                    , Attr.style "background-color" "#ff9800"
+                    , Attr.style "color" "#fff"
                     , Attr.style "border" "none"
-                    , Attr.style "border-radius" "4px"
-                    , Attr.style "text-align" "center"
-                    , Events.onInput IncrementInputChanged
-                    , Events.stopPropagationOn "click" (Json.succeed ( NoOpFrontendMsg, True ))
+                    , Attr.style "border-radius" "8px"
+                    , Attr.style "cursor" "pointer"
+                    , Attr.style "font-family" "monospace"
+                    , Events.onClick Pause
                     ]
-                    []
-                , Html.span
-                    [ Attr.style "color" "#fff"
-                    , Attr.style "font-size" "14px"
+                    [ Html.text "Pause" ]
+                ]
+
+            Paused _ ->
+                [ Html.div
+                    [ Attr.style "display" "flex"
+                    , Attr.style "align-items" "center"
+                    , Attr.style "gap" "8px"
+                    , Attr.style "background-color" "rgba(255,255,255,0.1)"
+                    , Attr.style "padding" "10px 15px"
+                    , Attr.style "border-radius" "8px"
                     ]
-                    [ Html.text "sec" ]
+                    [ Html.span
+                        [ Attr.style "color" "#fff"
+                        , Attr.style "font-size" "14px"
+                        ]
+                        [ Html.text "Increment:" ]
+                    , Html.input
+                        [ Attr.type_ "number"
+                        , Attr.value model.incrementInput
+                        , Attr.style "width" "50px"
+                        , Attr.style "padding" "8px"
+                        , Attr.style "font-size" "16px"
+                        , Attr.style "font-family" "monospace"
+                        , Attr.style "border" "none"
+                        , Attr.style "border-radius" "4px"
+                        , Attr.style "text-align" "center"
+                        , Events.onInput IncrementInputChanged
+                        , Events.stopPropagationOn "click" (Json.succeed ( NoOpFrontendMsg, True ))
+                        ]
+                        []
+                    , Html.span
+                        [ Attr.style "color" "#fff"
+                        , Attr.style "font-size" "14px"
+                        ]
+                        [ Html.text "sec" ]
+                    ]
+                , Html.button
+                    [ Attr.style "padding" "15px 25px"
+                    , Attr.style "font-size" "18px"
+                    , Attr.style "background-color" "#2196F3"
+                    , Attr.style "color" "#fff"
+                    , Attr.style "border" "none"
+                    , Attr.style "border-radius" "8px"
+                    , Attr.style "cursor" "pointer"
+                    , Attr.style "font-family" "monospace"
+                    , Events.onClick Reset
+                    ]
+                    [ Html.text "Reset" ]
                 ]
-
-          else
-            Html.text ""
-        , if gameRunning then
-            Html.button
-                [ Attr.style "padding" "15px 25px"
-                , Attr.style "font-size" "18px"
-                , Attr.style "background-color" "#ff9800"
-                , Attr.style "color" "#fff"
-                , Attr.style "border" "none"
-                , Attr.style "border-radius" "8px"
-                , Attr.style "cursor" "pointer"
-                , Attr.style "font-family" "monospace"
-                , Events.onClick Pause
-                ]
-                [ Html.text "Pause" ]
-
-          else
-            Html.text ""
-        , if model.isPaused then
-            Html.button
-                [ Attr.style "padding" "15px 25px"
-                , Attr.style "font-size" "18px"
-                , Attr.style "background-color" "#2196F3"
-                , Attr.style "color" "#fff"
-                , Attr.style "border" "none"
-                , Attr.style "border-radius" "8px"
-                , Attr.style "cursor" "pointer"
-                , Attr.style "font-family" "monospace"
-                , Events.onClick Reset
-                ]
-                [ Html.text "Reset" ]
-
-          else
-            Html.text ""
-        ]
+        )
 
 
-viewTimer : Model -> Player -> Html FrontendMsg
+viewTimer : FrontendModel -> Player -> Html FrontendMsg
 viewTimer model player =
     let
         ( time, label, isActive ) =
             case player of
                 Player1 ->
-                    ( model.player1Time, "Player 1", model.activePlayer == Just Player1 )
+                    ( model.player1Time, "Player 1", model.mode == Running Player1 )
 
                 Player2 ->
-                    ( model.player2Time, "Player 2", model.activePlayer == Just Player2 )
+                    ( model.player2Time, "Player 2", model.mode == Running Player2 )
 
         backgroundColor =
             if time == 0 then
@@ -424,14 +424,16 @@ viewTimer model player =
         textColor =
             "#fff"
 
+        isPaused =
+            case model.mode of
+                Paused _ ->
+                    True
+
+                Running _ ->
+                    False
+
         showTapToStart =
-            model.activePlayer == Nothing && not model.isPaused && time > 0
-
-        showTapToResume =
-            model.isPaused && time > 0 && model.editingTime == Nothing
-
-        isEditingThis =
-            model.editingTime == Just player
+            isPaused && time > 0
     in
     Html.div
         [ Attr.style "flex" "1"
@@ -451,44 +453,60 @@ viewTimer model player =
             , Attr.style "opacity" "0.8"
             ]
             [ Html.text label ]
-        , if isEditingThis then
-            Html.input
-                [ Attr.type_ "text"
-                , Attr.value model.timeInput
-                , Attr.style "font-size" "80px"
-                , Attr.style "font-weight" "bold"
-                , Attr.style "font-family" "monospace"
-                , Attr.style "width" "280px"
-                , Attr.style "text-align" "center"
-                , Attr.style "background-color" "rgba(255,255,255,0.2)"
-                , Attr.style "border" "2px solid #fff"
-                , Attr.style "border-radius" "8px"
-                , Attr.style "color" "#fff"
-                , Attr.style "padding" "10px"
-                , Events.onInput TimeInputChanged
-                , Events.onBlur TimeInputBlurred
-                , Events.stopPropagationOn "click" (Json.succeed ( NoOpFrontendMsg, True ))
-                ]
-                []
+        , case model.mode of
+            Paused paused ->
+                case paused.editing of
+                    Just ( editingPlayer, value ) ->
+                        if editingPlayer == player then
+                            Html.input
+                                [ Attr.type_ "text"
+                                , Attr.value value
+                                , Attr.style "font-size" "80px"
+                                , Attr.style "font-weight" "bold"
+                                , Attr.style "font-family" "monospace"
+                                , Attr.style "width" "280px"
+                                , Attr.style "text-align" "center"
+                                , Attr.style "background-color" "rgba(255,255,255,0.2)"
+                                , Attr.style "border" "2px solid #fff"
+                                , Attr.style "border-radius" "8px"
+                                , Attr.style "color" "#fff"
+                                , Attr.style "padding" "10px"
+                                , Events.onInput TimeInputChanged
+                                , Events.onBlur TimeInputBlurred
+                                , Events.stopPropagationOn "click" (Json.succeed ( NoOpFrontendMsg, True ))
+                                ]
+                                []
 
-          else if model.isPaused && time > 0 then
-            Html.div
-                [ Attr.style "font-size" "80px"
-                , Attr.style "font-weight" "bold"
-                , Attr.style "cursor" "text"
-                , Attr.style "padding" "10px 20px"
-                , Attr.style "border-radius" "8px"
-                , Attr.style "transition" "background-color 0.2s"
-                , Events.stopPropagationOn "click" (Json.succeed ( TimeClicked player, True ))
-                ]
-                [ Html.text (formatTime time) ]
+                        else
+                            Html.div
+                                [ Attr.style "font-size" "80px"
+                                , Attr.style "font-weight" "bold"
+                                , Attr.style "cursor" "text"
+                                , Attr.style "padding" "10px 20px"
+                                , Attr.style "border-radius" "8px"
+                                , Attr.style "transition" "background-color 0.2s"
+                                , Events.stopPropagationOn "click" (Json.succeed ( TimeClicked player, True ))
+                                ]
+                                [ Html.text (formatTime time) ]
 
-          else
-            Html.div
-                [ Attr.style "font-size" "80px"
-                , Attr.style "font-weight" "bold"
-                ]
-                [ Html.text (formatTime time) ]
+                    Nothing ->
+                        Html.div
+                            [ Attr.style "font-size" "80px"
+                            , Attr.style "font-weight" "bold"
+                            , Attr.style "cursor" "text"
+                            , Attr.style "padding" "10px 20px"
+                            , Attr.style "border-radius" "8px"
+                            , Attr.style "transition" "background-color 0.2s"
+                            , Events.stopPropagationOn "click" (Json.succeed ( TimeClicked player, True ))
+                            ]
+                            [ Html.text (formatTime time) ]
+
+            Running _ ->
+                Html.div
+                    [ Attr.style "font-size" "80px"
+                    , Attr.style "font-weight" "bold"
+                    ]
+                    [ Html.text (formatTime time) ]
         , if showTapToStart then
             Html.div
                 [ Attr.style "margin-top" "20px"
@@ -496,22 +514,20 @@ viewTimer model player =
                 , Attr.style "opacity" "0.7"
                 ]
                 [ Html.text "Tap to start" ]
-
-          else if showTapToResume then
-            Html.div
-                [ Attr.style "margin-top" "20px"
-                , Attr.style "font-size" "16px"
-                , Attr.style "opacity" "0.7"
-                ]
-                [ Html.text "Tap to resume" ]
-
-          else if model.isPaused && time > 0 && not isEditingThis then
-            Html.div
-                [ Attr.style "margin-top" "20px"
-                , Attr.style "font-size" "16px"
-                , Attr.style "opacity" "0.7"
-                ]
-                [ Html.text "Click time to edit" ]
+            --else if showTapToResume then
+            --  Html.div
+            --      [ Attr.style "margin-top" "20px"
+            --      , Attr.style "font-size" "16px"
+            --      , Attr.style "opacity" "0.7"
+            --      ]
+            --      [ Html.text "Tap to resume" ]
+            --else if model.activePlayer == Nothing && time > 0 && not isEditingThis then
+            --  Html.div
+            --      [ Attr.style "margin-top" "20px"
+            --      , Attr.style "font-size" "16px"
+            --      , Attr.style "opacity" "0.7"
+            --      ]
+            --      [ Html.text "Click time to edit" ]
 
           else
             Html.text ""
