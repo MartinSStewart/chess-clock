@@ -294,7 +294,24 @@ view : FrontendModel -> Browser.Document FrontendMsg
 view model =
     { title = "Chess Clock"
     , body =
-        [ Html.node "style" [] [ Html.text ("body { margin: 0; padding: 0; background-color: " ++ inactiveColor ++ "; }") ]
+        [ Html.node "style"
+            []
+            [ Html.text
+                (String.join "\n"
+                    [ "html, body {"
+                    , "  margin: 0;"
+                    , "  padding: 0;"
+                    , "  background-color: " ++ inactiveColor ++ ";"
+                    , "  overflow: hidden;"
+                    , "  overscroll-behavior: none;"
+                    , "  position: fixed;"
+                    , "  width: 100%;"
+                    , "  height: 100%;"
+                    , "  touch-action: manipulation;"
+                    , "}"
+                    ]
+                )
+            ]
         , Html.div
             [ Attr.style "display" "flex"
             , Attr.style "flex-direction" "column"
