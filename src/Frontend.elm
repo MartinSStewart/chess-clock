@@ -309,7 +309,7 @@ view model =
             [ viewTimer model Player1
             , Html.div
                 [ Attr.style "height" "4px"
-                , Attr.style "background-color" "#1a1a1a"
+                , Attr.style "background-color" "#5a5a5a"
                 , Attr.style "width" "100%"
                 ]
                 []
