@@ -341,7 +341,7 @@ viewControls : FrontendModel -> Html FrontendMsg
 viewControls model =
     Html.div
         [ Attr.style "position" "absolute"
-        , Attr.style "bottom" "20px"
+        , Attr.style "top" "20px"
         , Attr.style "right" "20px"
         , Attr.style "display" "flex"
         , Attr.style "gap" "10px"
