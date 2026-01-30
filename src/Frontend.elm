@@ -294,7 +294,8 @@ view : FrontendModel -> Browser.Document FrontendMsg
 view model =
     { title = "Chess Clock"
     , body =
-        [ Html.div
+        [ Html.node "style" [] [ Html.text "body { margin: 0; padding: 0; background-color: #1a1a1a; }" ]
+        , Html.div
             [ Attr.style "display" "flex"
             , Attr.style "flex-direction" "column"
             , Attr.style "height" "100vh"
@@ -306,6 +307,12 @@ view model =
             , Attr.style "position" "relative"
             ]
             [ viewTimer model Player1
+            , Html.div
+                [ Attr.style "height" "4px"
+                , Attr.style "background-color" "#1a1a1a"
+                , Attr.style "width" "100%"
+                ]
+                []
             , viewTimer model Player2
             , viewControls model
             ]
