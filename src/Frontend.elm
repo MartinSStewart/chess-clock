@@ -1,4 +1,4 @@
-module Frontend exposing (..)
+port module Frontend exposing (..)
 
 import Browser exposing (UrlRequest(..))
 import Browser.Events
@@ -11,7 +11,12 @@ import Lamdera
 import Time
 import Types exposing (..)
 import Url
-import WakeLock
+
+
+port requestWakeLock : () -> Cmd msg
+
+
+port releaseWakeLock : () -> Cmd msg
 
 
 initialTime : Int
@@ -59,7 +64,7 @@ subscriptions model =
 
 update : FrontendMsg -> FrontendModel -> ( FrontendModel, Cmd FrontendMsg )
 update msg model =
-    case msg of
+    (case msg of
         UrlClicked urlRequest ->
             case urlRequest of
                 Internal url ->
@@ -80,35 +85,35 @@ update msg model =
 
         PlayerClicked player ->
             let
-                ( mode, newPlayer1Time, newPlayer2Time, wakeLockCmd ) =
+                ( mode, newPlayer1Time, newPlayer2Time ) =
                     case model.mode of
                         Paused paused ->
                             case paused.editing of
                                 Just _ ->
-                                    ( Paused { editing = Nothing }, model.player1Time, model.player2Time, Cmd.none )
+                                    ( Paused { editing = Nothing }, model.player1Time, model.player2Time )
 
                                 Nothing ->
                                     if model.player1Time > 0 && model.player2Time > 0 then
-                                        ( Running player, model.player1Time, model.player2Time, WakeLock.requestWakeLock () )
+                                        ( Running player, model.player1Time, model.player2Time )
 
                                     else
-                                        ( Paused { editing = Nothing }, model.player1Time, model.player2Time, Cmd.none )
+                                        ( Paused { editing = Nothing }, model.player1Time, model.player2Time )
 
                         Running Player1 ->
                             -- Player 1 finished turn, add increment to their time
-                            ( Running Player2, model.player1Time + model.increment, model.player2Time, Cmd.none )
+                            ( Running Player2, model.player1Time + model.increment, model.player2Time )
 
                         Running Player2 ->
                             -- Player 2 finished turn, add increment to their time
-                            ( Running Player1, model.player1Time, model.player2Time + model.increment, Cmd.none )
+                            ( Running Player1, model.player1Time, model.player2Time + model.increment )
             in
             ( { model | mode = mode, player1Time = newPlayer1Time, player2Time = newPlayer2Time }
-            , wakeLockCmd
+            , Cmd.none
             )
 
         Pause ->
             ( { model | mode = Paused { editing = Nothing } }
-            , WakeLock.releaseWakeLock ()
+            , Cmd.none
             )
 
         Reset ->
@@ -117,7 +122,7 @@ update msg model =
                 , player2Time = initialTime
                 , mode = Paused { editing = Nothing }
               }
-            , WakeLock.releaseWakeLock ()
+            , Cmd.none
             )
 
         IncrementInputChanged value ->
@@ -226,32 +231,46 @@ update msg model =
 
                         Paused _ ->
                             ( model.player1Time, model.player2Time )
-
-                timerExpired =
-                    case model.mode of
-                        Running _ ->
-                            newPlayer1Time <= 0 || newPlayer2Time <= 0
-
-                        Paused _ ->
-                            False
             in
             ( { model
                 | player1Time = newPlayer1Time
                 , player2Time = newPlayer2Time
                 , lastTick = currentTime
                 , mode =
-                    if timerExpired then
-                        Paused { editing = Nothing }
+                    case ( newPlayer1Time <= 0 || newPlayer2Time <= 0, model.mode ) of
+                        ( True, Running _ ) ->
+                            Paused { editing = Nothing }
 
-                    else
-                        model.mode
+                        _ ->
+                            model.mode
               }
-            , if timerExpired then
-                WakeLock.releaseWakeLock ()
-
-              else
-                Cmd.none
+            , Cmd.none
             )
+    )
+        |> (\( model2, cmd ) ->
+                ( model2
+                , Cmd.batch
+                    [ if shouldEnableWakeLock model2 == shouldEnableWakeLock model then
+                        Cmd.none
+
+                      else if shouldEnableWakeLock model2 then
+                        requestWakeLock ()
+
+                      else
+                        releaseWakeLock ()
+                    , cmd
+                    ]
+                )
+           )
+
+
+shouldEnableWakeLock model =
+    case model.mode of
+        Running _ ->
+            True
+
+        Paused _ ->
+            False
 
 
 updateFromBackend : ToFrontend -> FrontendModel -> ( FrontendModel, Cmd FrontendMsg )

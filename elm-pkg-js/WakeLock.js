@@ -1,8 +1,3 @@
-/* elm-pkg-js
-port requestWakeLock : () -> Cmd msg
-port releaseWakeLock : () -> Cmd msg
-*/
-
 exports.init = async function (app) {
     let wakeLock = null;
     let wakeLockRequested = false;
