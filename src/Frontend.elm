@@ -11,6 +11,7 @@ import Lamdera
 import Time
 import Types exposing (..)
 import Url
+import WakeLock
 
 
 initialTime : Int
@@ -79,35 +80,35 @@ update msg model =
 
         PlayerClicked player ->
             let
-                ( mode, newPlayer1Time, newPlayer2Time ) =
+                ( mode, newPlayer1Time, newPlayer2Time, wakeLockCmd ) =
                     case model.mode of
                         Paused paused ->
                             case paused.editing of
                                 Just _ ->
-                                    ( Paused { editing = Nothing }, model.player1Time, model.player2Time )
+                                    ( Paused { editing = Nothing }, model.player1Time, model.player2Time, Cmd.none )
 
                                 Nothing ->
                                     if model.player1Time > 0 && model.player2Time > 0 then
-                                        ( Running player, model.player1Time, model.player2Time )
+                                        ( Running player, model.player1Time, model.player2Time, WakeLock.requestWakeLock () )
 
                                     else
-                                        ( Paused { editing = Nothing }, model.player1Time, model.player2Time )
+                                        ( Paused { editing = Nothing }, model.player1Time, model.player2Time, Cmd.none )
 
                         Running Player1 ->
                             -- Player 1 finished turn, add increment to their time
-                            ( Running Player2, model.player1Time + model.increment, model.player2Time )
+                            ( Running Player2, model.player1Time + model.increment, model.player2Time, Cmd.none )
 
                         Running Player2 ->
                             -- Player 2 finished turn, add increment to their time
-                            ( Running Player1, model.player1Time, model.player2Time + model.increment )
+                            ( Running Player1, model.player1Time, model.player2Time + model.increment, Cmd.none )
             in
             ( { model | mode = mode, player1Time = newPlayer1Time, player2Time = newPlayer2Time }
-            , Cmd.none
+            , wakeLockCmd
             )
 
         Pause ->
             ( { model | mode = Paused { editing = Nothing } }
-            , Cmd.none
+            , WakeLock.releaseWakeLock ()
             )
 
         Reset ->
@@ -116,7 +117,7 @@ update msg model =
                 , player2Time = initialTime
                 , mode = Paused { editing = Nothing }
               }
-            , Cmd.none
+            , WakeLock.releaseWakeLock ()
             )
 
         IncrementInputChanged value ->
@@ -225,20 +226,31 @@ update msg model =
 
                         Paused _ ->
                             ( model.player1Time, model.player2Time )
+
+                timerExpired =
+                    case model.mode of
+                        Running _ ->
+                            newPlayer1Time <= 0 || newPlayer2Time <= 0
+
+                        Paused _ ->
+                            False
             in
             ( { model
                 | player1Time = newPlayer1Time
                 , player2Time = newPlayer2Time
                 , lastTick = currentTime
                 , mode =
-                    case ( newPlayer1Time <= 0 || newPlayer2Time <= 0, model.mode ) of
-                        ( True, Running _ ) ->
-                            Paused { editing = Nothing }
+                    if timerExpired then
+                        Paused { editing = Nothing }
 
-                        _ ->
-                            model.mode
+                    else
+                        model.mode
               }
-            , Cmd.none
+            , if timerExpired then
+                WakeLock.releaseWakeLock ()
+
+              else
+                Cmd.none
             )
 
 
