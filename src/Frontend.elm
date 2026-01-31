@@ -1,4 +1,4 @@
-module Frontend exposing (..)
+port module Frontend exposing (..)
 
 import Browser exposing (UrlRequest(..))
 import Browser.Events
@@ -11,6 +11,12 @@ import Lamdera
 import Time
 import Types exposing (..)
 import Url
+
+
+port requestWakeLock : () -> Cmd msg
+
+
+port releaseWakeLock : () -> Cmd msg
 
 
 initialTime : Int
@@ -58,7 +64,7 @@ subscriptions model =
 
 update : FrontendMsg -> FrontendModel -> ( FrontendModel, Cmd FrontendMsg )
 update msg model =
-    case msg of
+    (case msg of
         UrlClicked urlRequest ->
             case urlRequest of
                 Internal url ->
@@ -240,6 +246,31 @@ update msg model =
               }
             , Cmd.none
             )
+    )
+        |> (\( model2, cmd ) ->
+                ( model2
+                , Cmd.batch
+                    [ if shouldEnableWakeLock model2 == shouldEnableWakeLock model then
+                        Cmd.none
+
+                      else if shouldEnableWakeLock model2 then
+                        requestWakeLock ()
+
+                      else
+                        releaseWakeLock ()
+                    , cmd
+                    ]
+                )
+           )
+
+
+shouldEnableWakeLock model =
+    case model.mode of
+        Running _ ->
+            True
+
+        Paused _ ->
+            False
 
 
 updateFromBackend : ToFrontend -> FrontendModel -> ( FrontendModel, Cmd FrontendMsg )
