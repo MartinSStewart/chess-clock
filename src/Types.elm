@@ -2,6 +2,7 @@ module Types exposing (..)
 
 import Browser exposing (UrlRequest)
 import Browser.Navigation exposing (Key)
+import Duration exposing (Duration)
 import Time
 import Url exposing (Url)
 
@@ -18,18 +19,18 @@ type FrontendModel
 
 type alias SetupData =
     { key : Key
-    , time : Int
+    , time : Duration
     , increment : Int
     }
 
 
 type alias ReadyData =
     { key : Key
-    , player1Time : Int -- milliseconds remaining
-    , player2Time : Int -- milliseconds remaining
+    , player1Time : Duration
+    , player2Time : Duration
     , mode : Mode
-    , lastTick : Time.Posix -- last time we updated
-    , increment : Int -- time increment in milliseconds
+    , lastTick : Time.Posix
+    , increment : Duration
     }
 
 

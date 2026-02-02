@@ -3,11 +3,13 @@ port module Frontend exposing (..)
 import Browser exposing (UrlRequest(..))
 import Browser.Events
 import Browser.Navigation as Nav
+import Duration exposing (Duration)
 import Html exposing (Html)
 import Html.Attributes as Attr
 import Html.Events as Events
 import Json.Decode as Json
 import Lamdera
+import Quantity
 import Time
 import Types exposing (..)
 import Url
@@ -42,12 +44,12 @@ setupInit : Nav.Key -> FrontendModel
 setupInit key =
     Setup
         { key = key
-        , time = 0
+        , time = Duration.minutes 5
         , increment = 5
         }
 
 
-readyInit : Nav.Key -> Int -> Int -> FrontendModel
+readyInit : Nav.Key -> Duration -> Duration -> FrontendModel
 readyInit key initialTime increment =
     { key = key
     , player1Time = initialTime
@@ -132,10 +134,41 @@ updateSetupMsg : SetupMsg -> SetupData -> ( FrontendModel, Cmd FrontendMsg )
 updateSetupMsg msg model =
     case msg of
         PressedPlusMinute ->
-            ( Setup { model | time = model.time + 60000 }, Cmd.none )
+            ( Setup
+                { model
+                    | time =
+                        if model.time |> Quantity.greaterThanOrEqualTo (Duration.minutes 10) then
+                            Quantity.plus model.time (Duration.minutes 5)
+
+                        else if model.time >= minute * 6 then
+                            model.time + minute * 2
+
+                        else
+                            model.time + minute
+                }
+            , Cmd.none
+            )
 
         PressedMinusMinute ->
-            ( Setup { model | time = max 0 (model.time - 60000) }, Cmd.none )
+            ( Setup
+                { model
+                    | time =
+                        (if model.time >= minute * 15 then
+                            model.time - minute * 5
+
+                         else if model.time >= minute * 8 then
+                            model.time - minute * 2
+
+                         else if model.time > minute then
+                            model.time - minute
+
+                         else
+                            model.time
+                        )
+                            |> max 0
+                }
+            , Cmd.none
+            )
 
         PressedPlusTenSeconds ->
             ( Setup { model | time = model.time + 10000 }, Cmd.none )
@@ -148,7 +181,12 @@ updateSetupMsg msg model =
 
         PressedStart ->
             if model.time > 0 then
-                ( readyInit model.key model.time (model.increment * 1000), Cmd.none )
+                ( readyInit
+                    model.key
+                    model.time
+                    (incrementSliderValueToIncrement model.increment |> toFloat |> Duration.seconds)
+                , Cmd.none
+                )
 
             else
                 ( Setup model, Cmd.none )
@@ -389,7 +427,7 @@ setupView model =
                         , Attr.style "min-width" "100px"
                         , Attr.style "text-align" "center"
                         ]
-                        [ Html.text (String.fromInt (model.time // 60000)) ]
+                        [ String.fromInt (model.time // 60000) |> String.padLeft 2 '0' |> Html.text ]
                     , arrowButton "▼" PressedMinusMinute
                     ]
                 , Html.div
@@ -424,11 +462,11 @@ setupView model =
                 [ Html.div
                     [ Attr.style "font-size" "18px"
                     ]
-                    [ Html.text ("Increment: " ++ String.fromInt model.increment ++ "s") ]
+                    [ Html.text ("Increment: " ++ String.fromInt (incrementSliderValueToIncrement model.increment) ++ "s") ]
                 , Html.input
                     [ Attr.type_ "range"
                     , Attr.min "0"
-                    , Attr.max "30"
+                    , Attr.max "24"
                     , Attr.value (String.fromInt model.increment)
                     , Attr.style "width" "200px"
                     , Attr.style "cursor" "pointer"
@@ -463,6 +501,68 @@ setupView model =
                 [ Html.text "Start" ]
             ]
         ]
+
+
+incrementSliderValueToIncrement : Int -> Int
+incrementSliderValueToIncrement value =
+    if value <= 6 then
+        value
+
+    else
+        case value - 6 of
+            1 ->
+                8
+
+            2 ->
+                10
+
+            3 ->
+                15
+
+            4 ->
+                20
+
+            5 ->
+                25
+
+            6 ->
+                30
+
+            7 ->
+                40
+
+            8 ->
+                50
+
+            9 ->
+                60
+
+            10 ->
+                80
+
+            11 ->
+                100
+
+            12 ->
+                120
+
+            13 ->
+                140
+
+            14 ->
+                160
+
+            15 ->
+                180
+
+            16 ->
+                200
+
+            17 ->
+                250
+
+            _ ->
+                300
 
 
 arrowButton : String -> SetupMsg -> Html SetupMsg
