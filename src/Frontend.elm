@@ -652,6 +652,9 @@ viewTimer model player =
             (if time |> Quantity.lessThanOrEqualTo Quantity.zero then
                 "#ff4444"
 
+             else if isActive && (time |> Quantity.lessThanOrEqualTo (Duration.seconds 30)) then
+                "#ff9800"
+
              else if isActive then
                 "#4CAF50"
 
