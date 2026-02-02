@@ -154,13 +154,13 @@ updateSetupMsg msg model =
                 { model
                     | time =
                         (if model.time |> Quantity.greaterThanOrEqualTo (Duration.minutes 15) then
-                            Quantity.minus model.time (Duration.minutes 5)
+                            model.time |> Quantity.minus (Duration.minutes 5)
 
                          else if model.time |> Quantity.greaterThanOrEqualTo (Duration.minutes 8) then
-                            Quantity.minus model.time (Duration.minutes 2)
+                            model.time |> Quantity.minus (Duration.minutes 2)
 
                          else if model.time |> Quantity.greaterThan (Duration.minutes 1) then
-                            Quantity.minus model.time (Duration.minutes 1)
+                            model.time |> Quantity.minus (Duration.minutes 1)
 
                          else
                             model.time
@@ -174,7 +174,7 @@ updateSetupMsg msg model =
             ( Setup { model | time = Quantity.plus model.time (Duration.seconds 10) }, Cmd.none )
 
         PressedMinusTenSeconds ->
-            ( Setup { model | time = Quantity.max Quantity.zero (Quantity.minus model.time (Duration.seconds 10)) }, Cmd.none )
+            ( Setup { model | time = Quantity.max Quantity.zero (model.time |> Quantity.minus (Duration.seconds 10)) }, Cmd.none )
 
         AdjustedIncrementSlider value ->
             ( Setup { model | increment = value }, Cmd.none )
@@ -236,15 +236,15 @@ updateReadyMsg msg model =
                         Quantity.zero
 
                     else
-                        Duration.milliseconds (toFloat (Time.posixToMillis currentTime - Time.posixToMillis model.lastTick))
+                        Duration.from model.lastTick currentTime
 
                 ( newPlayer1Time, newPlayer2Time ) =
                     case model.mode of
                         Running Player1 ->
-                            ( Quantity.max Quantity.zero (Quantity.minus model.player1Time elapsed), model.player2Time )
+                            ( Quantity.max Quantity.zero (model.player1Time |> Quantity.minus elapsed), model.player2Time )
 
                         Running Player2 ->
-                            ( model.player1Time, Quantity.max Quantity.zero (Quantity.minus model.player2Time elapsed) )
+                            ( model.player1Time, Quantity.max Quantity.zero (model.player2Time |> Quantity.minus elapsed) )
 
                         Paused ->
                             ( model.player1Time, model.player2Time )
