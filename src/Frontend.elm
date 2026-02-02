@@ -140,11 +140,11 @@ updateSetupMsg msg model =
                         if model.time |> Quantity.greaterThanOrEqualTo (Duration.minutes 10) then
                             Quantity.plus model.time (Duration.minutes 5)
 
-                        else if model.time >= minute * 6 then
-                            model.time + minute * 2
+                        else if model.time |> Quantity.greaterThanOrEqualTo (Duration.minutes 6) then
+                            Quantity.plus model.time (Duration.minutes 2)
 
                         else
-                            model.time + minute
+                            Quantity.plus model.time (Duration.minutes 1)
                 }
             , Cmd.none
             )
@@ -153,34 +153,34 @@ updateSetupMsg msg model =
             ( Setup
                 { model
                     | time =
-                        (if model.time >= minute * 15 then
-                            model.time - minute * 5
+                        (if model.time |> Quantity.greaterThanOrEqualTo (Duration.minutes 15) then
+                            Quantity.minus model.time (Duration.minutes 5)
 
-                         else if model.time >= minute * 8 then
-                            model.time - minute * 2
+                         else if model.time |> Quantity.greaterThanOrEqualTo (Duration.minutes 8) then
+                            Quantity.minus model.time (Duration.minutes 2)
 
-                         else if model.time > minute then
-                            model.time - minute
+                         else if model.time |> Quantity.greaterThan (Duration.minutes 1) then
+                            Quantity.minus model.time (Duration.minutes 1)
 
                          else
                             model.time
                         )
-                            |> max 0
+                            |> Quantity.max Quantity.zero
                 }
             , Cmd.none
             )
 
         PressedPlusTenSeconds ->
-            ( Setup { model | time = model.time + 10000 }, Cmd.none )
+            ( Setup { model | time = Quantity.plus model.time (Duration.seconds 10) }, Cmd.none )
 
         PressedMinusTenSeconds ->
-            ( Setup { model | time = max 0 (model.time - 10000) }, Cmd.none )
+            ( Setup { model | time = Quantity.max Quantity.zero (Quantity.minus model.time (Duration.seconds 10)) }, Cmd.none )
 
         AdjustedIncrementSlider value ->
             ( Setup { model | increment = value }, Cmd.none )
 
         PressedStart ->
-            if model.time > 0 then
+            if model.time |> Quantity.greaterThan Quantity.zero then
                 ( readyInit
                     model.key
                     model.time
@@ -200,7 +200,7 @@ updateReadyMsg msg model =
                 ( mode, newPlayer1Time, newPlayer2Time ) =
                     case model.mode of
                         Paused ->
-                            if model.player1Time > 0 && model.player2Time > 0 then
+                            if (model.player1Time |> Quantity.greaterThan Quantity.zero) && (model.player2Time |> Quantity.greaterThan Quantity.zero) then
                                 ( Running player, model.player1Time, model.player2Time )
 
                             else
@@ -208,11 +208,11 @@ updateReadyMsg msg model =
 
                         Running Player1 ->
                             -- Player 1 finished turn, add increment to their time
-                            ( Running Player2, model.player1Time + model.increment, model.player2Time )
+                            ( Running Player2, Quantity.plus model.player1Time model.increment, model.player2Time )
 
                         Running Player2 ->
                             -- Player 2 finished turn, add increment to their time
-                            ( Running Player1, model.player1Time, model.player2Time + model.increment )
+                            ( Running Player1, model.player1Time, Quantity.plus model.player2Time model.increment )
             in
             ( { model | mode = mode, player1Time = newPlayer1Time, player2Time = newPlayer2Time } |> Ready
             , Cmd.none
@@ -230,21 +230,21 @@ updateReadyMsg msg model =
 
         Tick currentTime ->
             let
-                elapsed : Int
+                elapsed : Duration
                 elapsed =
                     if Time.posixToMillis model.lastTick == 0 then
-                        0
+                        Quantity.zero
 
                     else
-                        Time.posixToMillis currentTime - Time.posixToMillis model.lastTick
+                        Duration.milliseconds (toFloat (Time.posixToMillis currentTime - Time.posixToMillis model.lastTick))
 
                 ( newPlayer1Time, newPlayer2Time ) =
                     case model.mode of
                         Running Player1 ->
-                            ( max 0 (model.player1Time - elapsed), model.player2Time )
+                            ( Quantity.max Quantity.zero (Quantity.minus model.player1Time elapsed), model.player2Time )
 
                         Running Player2 ->
-                            ( model.player1Time, max 0 (model.player2Time - elapsed) )
+                            ( model.player1Time, Quantity.max Quantity.zero (Quantity.minus model.player2Time elapsed) )
 
                         Paused ->
                             ( model.player1Time, model.player2Time )
@@ -254,7 +254,7 @@ updateReadyMsg msg model =
                 , player2Time = newPlayer2Time
                 , lastTick = currentTime
                 , mode =
-                    case ( newPlayer1Time <= 0 || newPlayer2Time <= 0, model.mode ) of
+                    case ( (newPlayer1Time |> Quantity.lessThanOrEqualTo Quantity.zero) || (newPlayer2Time |> Quantity.lessThanOrEqualTo Quantity.zero), model.mode ) of
                         ( True, Running _ ) ->
                             Paused
 
@@ -288,11 +288,11 @@ updateFromBackend msg model =
             ( model, Cmd.none )
 
 
-formatTime : Int -> String
-formatTime millis =
+formatTime : Duration -> String
+formatTime duration =
     let
         totalSeconds =
-            millis // 1000
+            Duration.inSeconds duration |> round
 
         minutes =
             totalSeconds // 60
@@ -427,7 +427,7 @@ setupView model =
                         , Attr.style "min-width" "100px"
                         , Attr.style "text-align" "center"
                         ]
-                        [ String.fromInt (model.time // 60000) |> String.padLeft 2 '0' |> Html.text ]
+                        [ String.fromInt (Duration.inMinutes model.time |> floor) |> String.padLeft 2 '0' |> Html.text ]
                     , arrowButton "▼" PressedMinusMinute
                     ]
                 , Html.div
@@ -448,7 +448,7 @@ setupView model =
                         , Attr.style "min-width" "100px"
                         , Attr.style "text-align" "center"
                         ]
-                        [ Html.text (String.padLeft 2 '0' (String.fromInt (modBy 60 (model.time // 1000)))) ]
+                        [ Html.text (String.padLeft 2 '0' (String.fromInt (Duration.inSeconds model.time |> floor |> modBy 60))) ]
                     , arrowButton "▼" PressedMinusTenSeconds
                     ]
                 ]
@@ -478,7 +478,7 @@ setupView model =
                 [ Attr.style "padding" "20px 60px"
                 , Attr.style "font-size" "24px"
                 , Attr.style "background-color"
-                    (if model.time > 0 then
+                    (if model.time |> Quantity.greaterThan Quantity.zero then
                         "#4CAF50"
 
                      else
@@ -488,7 +488,7 @@ setupView model =
                 , Attr.style "border" "none"
                 , Attr.style "border-radius" "8px"
                 , Attr.style "cursor"
-                    (if model.time > 0 then
+                    (if model.time |> Quantity.greaterThan Quantity.zero then
                         "pointer"
 
                      else
@@ -649,7 +649,7 @@ viewTimer model player =
         , Attr.style "align-items" "center"
         , Attr.style
             "background-color"
-            (if time == 0 then
+            (if time |> Quantity.lessThanOrEqualTo Quantity.zero then
                 "#ff4444"
 
              else if isActive then
@@ -663,7 +663,7 @@ viewTimer model player =
         , Attr.style "transition" "background-color 0.2s"
         , Events.onClick (PlayerClicked player)
         ]
-        ((if time > 0 then
+        ((if time |> Quantity.greaterThan Quantity.zero then
             Html.div
                 [ Attr.style "font-size" "24px"
                 , Attr.style "margin-bottom" "10px"
@@ -684,7 +684,7 @@ viewTimer model player =
                             , Attr.style "transition" "background-color 0.2s"
                             ]
                             [ Html.text (formatTime time) ]
-                        , if model.player1Time > 0 && model.player2Time > 0 then
+                        , if (model.player1Time |> Quantity.greaterThan Quantity.zero) && (model.player2Time |> Quantity.greaterThan Quantity.zero) then
                             Html.div
                                 [ Attr.style "margin-top" "20px"
                                 , Attr.style "font-size" "16px"
