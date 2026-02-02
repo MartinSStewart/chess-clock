@@ -374,41 +374,43 @@ setupView model =
             , Html.div
                 [ Attr.style "display" "flex"
                 , Attr.style "align-items" "center"
-                , Attr.style "gap" "20px"
+                , Attr.style "gap" "10px"
                 ]
                 [ Html.div
                     [ Attr.style "display" "flex"
                     , Attr.style "flex-direction" "column"
                     , Attr.style "align-items" "center"
-                    , Attr.style "gap" "10px"
+                    , Attr.style "gap" "8px"
                     ]
                     [ arrowButton "▲" PressedPlusMinute
                     , Html.div
-                        [ Attr.style "font-size" "14px"
-                        , Attr.style "opacity" "0.6"
+                        [ Attr.style "font-size" "60px"
+                        , Attr.style "font-weight" "bold"
+                        , Attr.style "min-width" "100px"
+                        , Attr.style "text-align" "center"
                         ]
-                        [ Html.text "1 min" ]
+                        [ Html.text (String.fromInt (model.time // 60000)) ]
                     , arrowButton "▼" PressedMinusMinute
                     ]
                 , Html.div
-                    [ Attr.style "font-size" "80px"
+                    [ Attr.style "font-size" "60px"
                     , Attr.style "font-weight" "bold"
-                    , Attr.style "min-width" "280px"
-                    , Attr.style "text-align" "center"
                     ]
-                    [ Html.text (formatTime model.time) ]
+                    [ Html.text ":" ]
                 , Html.div
                     [ Attr.style "display" "flex"
                     , Attr.style "flex-direction" "column"
                     , Attr.style "align-items" "center"
-                    , Attr.style "gap" "10px"
+                    , Attr.style "gap" "8px"
                     ]
                     [ arrowButton "▲" PressedPlusTenSeconds
                     , Html.div
-                        [ Attr.style "font-size" "14px"
-                        , Attr.style "opacity" "0.6"
+                        [ Attr.style "font-size" "60px"
+                        , Attr.style "font-weight" "bold"
+                        , Attr.style "min-width" "100px"
+                        , Attr.style "text-align" "center"
                         ]
-                        [ Html.text "10 sec" ]
+                        [ Html.text (String.padLeft 2 '0' (String.fromInt (modBy 60 (model.time // 1000)))) ]
                     , arrowButton "▼" PressedMinusTenSeconds
                     ]
                 ]
