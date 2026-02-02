@@ -130,7 +130,28 @@ update msg model =
 
 updateSetupMsg : SetupMsg -> SetupData -> ( FrontendModel, Cmd FrontendMsg )
 updateSetupMsg msg model =
-    Debug.todo ""
+    case msg of
+        PressedPlusMinute ->
+            ( Setup { model | time = model.time + 60000 }, Cmd.none )
+
+        PressedMinusMinute ->
+            ( Setup { model | time = max 0 (model.time - 60000) }, Cmd.none )
+
+        PressedPlusTenSeconds ->
+            ( Setup { model | time = model.time + 10000 }, Cmd.none )
+
+        PressedMinusTenSeconds ->
+            ( Setup { model | time = max 0 (model.time - 10000) }, Cmd.none )
+
+        AdjustedIncrementSlider value ->
+            ( Setup { model | increment = value }, Cmd.none )
+
+        PressedStart ->
+            if model.time > 0 then
+                ( readyInit model.key model.time (model.increment * 1000), Cmd.none )
+
+            else
+                ( Setup model, Cmd.none )
 
 
 updateReadyMsg : ReadyMsg -> ReadyData -> ( FrontendModel, Cmd FrontendMsg )
@@ -325,7 +346,138 @@ view model =
 
 setupView : SetupData -> Html SetupMsg
 setupView model =
-    Debug.todo ""
+    Html.div
+        [ Attr.style "display" "flex"
+        , Attr.style "flex-direction" "column"
+        , Attr.style "height" "100vh"
+        , Attr.style "width" "100vw"
+        , Attr.style "margin" "0"
+        , Attr.style "padding" "0"
+        , Attr.style "font-family" "monospace"
+        , Attr.style "user-select" "none"
+        , Attr.style "background-color" inactiveColor
+        , Attr.style "color" "#fff"
+        , Attr.style "justify-content" "center"
+        , Attr.style "align-items" "center"
+        ]
+        [ Html.div
+            [ Attr.style "display" "flex"
+            , Attr.style "flex-direction" "column"
+            , Attr.style "align-items" "center"
+            , Attr.style "gap" "20px"
+            ]
+            [ Html.div
+                [ Attr.style "font-size" "24px"
+                , Attr.style "opacity" "0.8"
+                ]
+                [ Html.text "Set Time" ]
+            , Html.div
+                [ Attr.style "display" "flex"
+                , Attr.style "align-items" "center"
+                , Attr.style "gap" "20px"
+                ]
+                [ Html.div
+                    [ Attr.style "display" "flex"
+                    , Attr.style "flex-direction" "column"
+                    , Attr.style "align-items" "center"
+                    , Attr.style "gap" "10px"
+                    ]
+                    [ arrowButton "▲" PressedPlusMinute
+                    , Html.div
+                        [ Attr.style "font-size" "14px"
+                        , Attr.style "opacity" "0.6"
+                        ]
+                        [ Html.text "1 min" ]
+                    , arrowButton "▼" PressedMinusMinute
+                    ]
+                , Html.div
+                    [ Attr.style "font-size" "80px"
+                    , Attr.style "font-weight" "bold"
+                    , Attr.style "min-width" "280px"
+                    , Attr.style "text-align" "center"
+                    ]
+                    [ Html.text (formatTime model.time) ]
+                , Html.div
+                    [ Attr.style "display" "flex"
+                    , Attr.style "flex-direction" "column"
+                    , Attr.style "align-items" "center"
+                    , Attr.style "gap" "10px"
+                    ]
+                    [ arrowButton "▲" PressedPlusTenSeconds
+                    , Html.div
+                        [ Attr.style "font-size" "14px"
+                        , Attr.style "opacity" "0.6"
+                        ]
+                        [ Html.text "10 sec" ]
+                    , arrowButton "▼" PressedMinusTenSeconds
+                    ]
+                ]
+            , Html.div
+                [ Attr.style "display" "flex"
+                , Attr.style "flex-direction" "column"
+                , Attr.style "align-items" "center"
+                , Attr.style "gap" "10px"
+                , Attr.style "margin-top" "20px"
+                ]
+                [ Html.div
+                    [ Attr.style "font-size" "18px"
+                    ]
+                    [ Html.text ("Increment: " ++ String.fromInt model.increment ++ "s") ]
+                , Html.input
+                    [ Attr.type_ "range"
+                    , Attr.min "0"
+                    , Attr.max "30"
+                    , Attr.value (String.fromInt model.increment)
+                    , Attr.style "width" "200px"
+                    , Attr.style "cursor" "pointer"
+                    , Events.onInput (\s -> AdjustedIncrementSlider (Maybe.withDefault 0 (String.toInt s)))
+                    ]
+                    []
+                ]
+            , Html.button
+                [ Attr.style "padding" "20px 60px"
+                , Attr.style "font-size" "24px"
+                , Attr.style "background-color"
+                    (if model.time > 0 then
+                        "#4CAF50"
+
+                     else
+                        "#666"
+                    )
+                , Attr.style "color" "#fff"
+                , Attr.style "border" "none"
+                , Attr.style "border-radius" "8px"
+                , Attr.style "cursor"
+                    (if model.time > 0 then
+                        "pointer"
+
+                     else
+                        "not-allowed"
+                    )
+                , Attr.style "font-family" "monospace"
+                , Attr.style "margin-top" "30px"
+                , Events.onClick PressedStart
+                ]
+                [ Html.text "Start" ]
+            ]
+        ]
+
+
+arrowButton : String -> SetupMsg -> Html SetupMsg
+arrowButton label msg =
+    Html.button
+        [ Attr.style "width" "60px"
+        , Attr.style "height" "60px"
+        , Attr.style "font-size" "30px"
+        , Attr.style "background-color" "#333"
+        , Attr.style "color" "#fff"
+        , Attr.style "border" "none"
+        , Attr.style "border-radius" "8px"
+        , Attr.style "cursor" "pointer"
+        , Attr.style "font-family" "monospace"
+        , Events.onClick msg
+        ]
+        [ Html.text label ]
 
 
 viewControls : ReadyData -> Html ReadyMsg
