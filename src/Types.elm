@@ -11,19 +11,30 @@ type Player
     | Player2
 
 
-type alias FrontendModel =
+type FrontendModel
+    = Setup SetupData
+    | Ready ReadyData
+
+
+type alias SetupData =
+    { key : Key
+    , time : Int
+    , increment : Int
+    }
+
+
+type alias ReadyData =
     { key : Key
     , player1Time : Int -- milliseconds remaining
     , player2Time : Int -- milliseconds remaining
     , mode : Mode
     , lastTick : Time.Posix -- last time we updated
     , increment : Int -- time increment in milliseconds
-    , incrementInput : String -- text input for increment setting
     }
 
 
 type Mode
-    = Paused { editing : Maybe ( Player, String ) }
+    = Paused
     | Running Player
 
 
@@ -35,15 +46,24 @@ type alias BackendModel =
 type FrontendMsg
     = UrlClicked UrlRequest
     | UrlChanged Url
-    | NoOpFrontendMsg
-    | PlayerClicked Player
+    | SetupMsg SetupMsg
+    | ReadyMsg ReadyMsg
+
+
+type SetupMsg
+    = PressedPlusMinute
+    | PressedMinusMinute
+    | PressedPlusTenSeconds
+    | PressedMinusTenSeconds
+    | AdjustedIncrementSlider Int
+    | PressedStart
+
+
+type ReadyMsg
+    = PlayerClicked Player
     | Tick Time.Posix
     | Pause
     | Reset
-    | IncrementInputChanged String
-    | TimeClicked Player
-    | TimeInputChanged String
-    | TimeInputBlurred
 
 
 type ToBackend
