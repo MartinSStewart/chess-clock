@@ -159,7 +159,7 @@ updateSetupMsg msg model =
                          else if model.time |> Quantity.greaterThanOrEqualTo (Duration.minutes 8) then
                             model.time |> Quantity.minus (Duration.minutes 2)
 
-                         else if model.time |> Quantity.greaterThan (Duration.minutes 1) then
+                         else if model.time |> Quantity.greaterThanOrEqualTo (Duration.minutes 1) then
                             model.time |> Quantity.minus (Duration.minutes 1)
 
                          else
