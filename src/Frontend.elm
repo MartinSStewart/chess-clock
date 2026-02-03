@@ -3,11 +3,13 @@ port module Frontend exposing (..)
 import Browser exposing (UrlRequest(..))
 import Browser.Events
 import Browser.Navigation as Nav
+import Duration exposing (Duration)
 import Html exposing (Html)
 import Html.Attributes as Attr
 import Html.Events as Events
 import Json.Decode as Json
 import Lamdera
+import Quantity
 import Time
 import Types exposing (..)
 import Url
@@ -42,12 +44,12 @@ setupInit : Nav.Key -> FrontendModel
 setupInit key =
     Setup
         { key = key
-        , time = 0
+        , time = Duration.minutes 5
         , increment = 5
         }
 
 
-readyInit : Nav.Key -> Int -> Int -> FrontendModel
+readyInit : Nav.Key -> Duration -> Duration -> FrontendModel
 readyInit key initialTime increment =
     { key = key
     , player1Time = initialTime
@@ -130,7 +132,64 @@ update msg model =
 
 updateSetupMsg : SetupMsg -> SetupData -> ( FrontendModel, Cmd FrontendMsg )
 updateSetupMsg msg model =
-    Debug.todo ""
+    case msg of
+        PressedPlusMinute ->
+            ( Setup
+                { model
+                    | time =
+                        if model.time |> Quantity.greaterThanOrEqualTo (Duration.minutes 10) then
+                            Quantity.plus model.time (Duration.minutes 5)
+
+                        else if model.time |> Quantity.greaterThanOrEqualTo (Duration.minutes 6) then
+                            Quantity.plus model.time (Duration.minutes 2)
+
+                        else
+                            Quantity.plus model.time (Duration.minutes 1)
+                }
+            , Cmd.none
+            )
+
+        PressedMinusMinute ->
+            ( Setup
+                { model
+                    | time =
+                        (if model.time |> Quantity.greaterThanOrEqualTo (Duration.minutes 15) then
+                            model.time |> Quantity.minus (Duration.minutes 5)
+
+                         else if model.time |> Quantity.greaterThanOrEqualTo (Duration.minutes 8) then
+                            model.time |> Quantity.minus (Duration.minutes 2)
+
+                         else if model.time |> Quantity.greaterThanOrEqualTo (Duration.minutes 1) then
+                            model.time |> Quantity.minus (Duration.minutes 1)
+
+                         else
+                            model.time
+                        )
+                            |> Quantity.max Quantity.zero
+                }
+            , Cmd.none
+            )
+
+        PressedPlusTenSeconds ->
+            ( Setup { model | time = Quantity.plus model.time (Duration.seconds 10) }, Cmd.none )
+
+        PressedMinusTenSeconds ->
+            ( Setup { model | time = Quantity.max Quantity.zero (model.time |> Quantity.minus (Duration.seconds 10)) }, Cmd.none )
+
+        AdjustedIncrementSlider value ->
+            ( Setup { model | increment = value }, Cmd.none )
+
+        PressedStart ->
+            if model.time |> Quantity.greaterThan Quantity.zero then
+                ( readyInit
+                    model.key
+                    model.time
+                    (incrementSliderValueToIncrement model.increment |> toFloat |> Duration.seconds)
+                , Cmd.none
+                )
+
+            else
+                ( Setup model, Cmd.none )
 
 
 updateReadyMsg : ReadyMsg -> ReadyData -> ( FrontendModel, Cmd FrontendMsg )
@@ -141,7 +200,7 @@ updateReadyMsg msg model =
                 ( mode, newPlayer1Time, newPlayer2Time ) =
                     case model.mode of
                         Paused ->
-                            if model.player1Time > 0 && model.player2Time > 0 then
+                            if (model.player1Time |> Quantity.greaterThan Quantity.zero) && (model.player2Time |> Quantity.greaterThan Quantity.zero) then
                                 ( Running player, model.player1Time, model.player2Time )
 
                             else
@@ -149,11 +208,11 @@ updateReadyMsg msg model =
 
                         Running Player1 ->
                             -- Player 1 finished turn, add increment to their time
-                            ( Running Player2, model.player1Time + model.increment, model.player2Time )
+                            ( Running Player2, Quantity.plus model.player1Time model.increment, model.player2Time )
 
                         Running Player2 ->
                             -- Player 2 finished turn, add increment to their time
-                            ( Running Player1, model.player1Time, model.player2Time + model.increment )
+                            ( Running Player1, model.player1Time, Quantity.plus model.player2Time model.increment )
             in
             ( { model | mode = mode, player1Time = newPlayer1Time, player2Time = newPlayer2Time } |> Ready
             , Cmd.none
@@ -171,21 +230,21 @@ updateReadyMsg msg model =
 
         Tick currentTime ->
             let
-                elapsed : Int
+                elapsed : Duration
                 elapsed =
                     if Time.posixToMillis model.lastTick == 0 then
-                        0
+                        Quantity.zero
 
                     else
-                        Time.posixToMillis currentTime - Time.posixToMillis model.lastTick
+                        Duration.from model.lastTick currentTime
 
                 ( newPlayer1Time, newPlayer2Time ) =
                     case model.mode of
                         Running Player1 ->
-                            ( max 0 (model.player1Time - elapsed), model.player2Time )
+                            ( Quantity.max Quantity.zero (model.player1Time |> Quantity.minus elapsed), model.player2Time )
 
                         Running Player2 ->
-                            ( model.player1Time, max 0 (model.player2Time - elapsed) )
+                            ( model.player1Time, Quantity.max Quantity.zero (model.player2Time |> Quantity.minus elapsed) )
 
                         Paused ->
                             ( model.player1Time, model.player2Time )
@@ -195,7 +254,7 @@ updateReadyMsg msg model =
                 , player2Time = newPlayer2Time
                 , lastTick = currentTime
                 , mode =
-                    case ( newPlayer1Time <= 0 || newPlayer2Time <= 0, model.mode ) of
+                    case ( (newPlayer1Time |> Quantity.lessThanOrEqualTo Quantity.zero) || (newPlayer2Time |> Quantity.lessThanOrEqualTo Quantity.zero), model.mode ) of
                         ( True, Running _ ) ->
                             Paused
 
@@ -229,11 +288,11 @@ updateFromBackend msg model =
             ( model, Cmd.none )
 
 
-formatTime : Int -> String
-formatTime millis =
+formatTime : Duration -> String
+formatTime duration =
     let
         totalSeconds =
-            millis // 1000
+            Duration.inSeconds duration |> round
 
         minutes =
             totalSeconds // 60
@@ -325,7 +384,202 @@ view model =
 
 setupView : SetupData -> Html SetupMsg
 setupView model =
-    Debug.todo ""
+    Html.div
+        [ Attr.style "display" "flex"
+        , Attr.style "flex-direction" "column"
+        , Attr.style "height" "100vh"
+        , Attr.style "width" "100vw"
+        , Attr.style "margin" "0"
+        , Attr.style "padding" "0"
+        , Attr.style "font-family" "monospace"
+        , Attr.style "user-select" "none"
+        , Attr.style "background-color" inactiveColor
+        , Attr.style "color" "#fff"
+        , Attr.style "justify-content" "center"
+        , Attr.style "align-items" "center"
+        ]
+        [ Html.div
+            [ Attr.style "display" "flex"
+            , Attr.style "flex-direction" "column"
+            , Attr.style "align-items" "center"
+            , Attr.style "gap" "20px"
+            ]
+            [ Html.div
+                [ Attr.style "font-size" "24px"
+                , Attr.style "opacity" "0.8"
+                ]
+                [ Html.text "Set Time" ]
+            , Html.div
+                [ Attr.style "display" "flex"
+                , Attr.style "align-items" "center"
+                , Attr.style "gap" "10px"
+                ]
+                [ Html.div
+                    [ Attr.style "display" "flex"
+                    , Attr.style "flex-direction" "column"
+                    , Attr.style "align-items" "center"
+                    , Attr.style "gap" "8px"
+                    ]
+                    [ arrowButton "▲" PressedPlusMinute
+                    , Html.div
+                        [ Attr.style "font-size" "60px"
+                        , Attr.style "font-weight" "bold"
+                        , Attr.style "min-width" "100px"
+                        , Attr.style "text-align" "center"
+                        ]
+                        [ String.fromInt (Duration.inMinutes model.time |> floor) |> String.padLeft 2 '0' |> Html.text ]
+                    , arrowButton "▼" PressedMinusMinute
+                    ]
+                , Html.div
+                    [ Attr.style "font-size" "60px"
+                    , Attr.style "font-weight" "bold"
+                    ]
+                    [ Html.text ":" ]
+                , Html.div
+                    [ Attr.style "display" "flex"
+                    , Attr.style "flex-direction" "column"
+                    , Attr.style "align-items" "center"
+                    , Attr.style "gap" "8px"
+                    ]
+                    [ arrowButton "▲" PressedPlusTenSeconds
+                    , Html.div
+                        [ Attr.style "font-size" "60px"
+                        , Attr.style "font-weight" "bold"
+                        , Attr.style "min-width" "100px"
+                        , Attr.style "text-align" "center"
+                        ]
+                        [ Html.text (String.padLeft 2 '0' (String.fromInt (Duration.inSeconds model.time |> floor |> modBy 60))) ]
+                    , arrowButton "▼" PressedMinusTenSeconds
+                    ]
+                ]
+            , Html.div
+                [ Attr.style "display" "flex"
+                , Attr.style "flex-direction" "column"
+                , Attr.style "align-items" "center"
+                , Attr.style "gap" "10px"
+                , Attr.style "margin-top" "20px"
+                ]
+                [ Html.div
+                    [ Attr.style "font-size" "18px"
+                    ]
+                    [ Html.text ("Increment: " ++ String.fromInt (incrementSliderValueToIncrement model.increment) ++ "s") ]
+                , Html.input
+                    [ Attr.type_ "range"
+                    , Attr.min "0"
+                    , Attr.max "24"
+                    , Attr.value (String.fromInt model.increment)
+                    , Attr.style "width" "200px"
+                    , Attr.style "cursor" "pointer"
+                    , Events.onInput (\s -> AdjustedIncrementSlider (Maybe.withDefault 0 (String.toInt s)))
+                    ]
+                    []
+                ]
+            , Html.button
+                [ Attr.style "padding" "20px 60px"
+                , Attr.style "font-size" "24px"
+                , Attr.style "background-color"
+                    (if model.time |> Quantity.greaterThan Quantity.zero then
+                        "#4CAF50"
+
+                     else
+                        "#666"
+                    )
+                , Attr.style "color" "#fff"
+                , Attr.style "border" "none"
+                , Attr.style "border-radius" "8px"
+                , Attr.style "cursor"
+                    (if model.time |> Quantity.greaterThan Quantity.zero then
+                        "pointer"
+
+                     else
+                        "not-allowed"
+                    )
+                , Attr.style "font-family" "monospace"
+                , Attr.style "margin-top" "30px"
+                , Events.onClick PressedStart
+                ]
+                [ Html.text "Start" ]
+            ]
+        ]
+
+
+incrementSliderValueToIncrement : Int -> Int
+incrementSliderValueToIncrement value =
+    if value <= 6 then
+        value
+
+    else
+        case value - 6 of
+            1 ->
+                8
+
+            2 ->
+                10
+
+            3 ->
+                15
+
+            4 ->
+                20
+
+            5 ->
+                25
+
+            6 ->
+                30
+
+            7 ->
+                40
+
+            8 ->
+                50
+
+            9 ->
+                60
+
+            10 ->
+                80
+
+            11 ->
+                100
+
+            12 ->
+                120
+
+            13 ->
+                140
+
+            14 ->
+                160
+
+            15 ->
+                180
+
+            16 ->
+                200
+
+            17 ->
+                250
+
+            _ ->
+                300
+
+
+arrowButton : String -> SetupMsg -> Html SetupMsg
+arrowButton label msg =
+    Html.button
+        [ Attr.style "width" "60px"
+        , Attr.style "height" "60px"
+        , Attr.style "font-size" "30px"
+        , Attr.style "background-color" "#333"
+        , Attr.style "color" "#fff"
+        , Attr.style "border" "none"
+        , Attr.style "border-radius" "8px"
+        , Attr.style "cursor" "pointer"
+        , Attr.style "font-family" "monospace"
+        , Events.onClick msg
+        ]
+        [ Html.text label ]
 
 
 viewControls : ReadyData -> Html ReadyMsg
@@ -395,8 +649,11 @@ viewTimer model player =
         , Attr.style "align-items" "center"
         , Attr.style
             "background-color"
-            (if time == 0 then
+            (if time |> Quantity.lessThanOrEqualTo Quantity.zero then
                 "#ff4444"
+
+             else if isActive && (time |> Quantity.lessThanOrEqualTo (Duration.seconds 30)) then
+                "#ff9800"
 
              else if isActive then
                 "#4CAF50"
@@ -409,7 +666,7 @@ viewTimer model player =
         , Attr.style "transition" "background-color 0.2s"
         , Events.onClick (PlayerClicked player)
         ]
-        ((if time > 0 then
+        ((if time |> Quantity.greaterThan Quantity.zero then
             Html.div
                 [ Attr.style "font-size" "24px"
                 , Attr.style "margin-bottom" "10px"
@@ -430,7 +687,7 @@ viewTimer model player =
                             , Attr.style "transition" "background-color 0.2s"
                             ]
                             [ Html.text (formatTime time) ]
-                        , if model.player1Time > 0 && model.player2Time > 0 then
+                        , if (model.player1Time |> Quantity.greaterThan Quantity.zero) && (model.player2Time |> Quantity.greaterThan Quantity.zero) then
                             Html.div
                                 [ Attr.style "margin-top" "20px"
                                 , Attr.style "font-size" "16px"
