@@ -57,6 +57,7 @@ readyInit key initialTime increment =
     , mode = Paused
     , lastTick = Time.millisToPosix 0
     , increment = increment
+    , lastSwitchedAt = Time.millisToPosix 0
     }
         |> Ready
 
@@ -196,27 +197,40 @@ updateReadyMsg : ReadyMsg -> ReadyData -> ( FrontendModel, Cmd FrontendMsg )
 updateReadyMsg msg model =
     case msg of
         PlayerClicked player ->
-            let
-                ( mode, newPlayer1Time, newPlayer2Time ) =
-                    case model.mode of
-                        Paused ->
-                            if (model.player1Time |> Quantity.greaterThan Quantity.zero) && (model.player2Time |> Quantity.greaterThan Quantity.zero) then
-                                ( Running player, model.player1Time, model.player2Time )
+            if Duration.from model.lastSwitchedAt model.lastTick |> Quantity.lessThan (Duration.seconds 0.4) then
+                ( Ready model, Cmd.none )
 
-                            else
-                                ( Paused, model.player1Time, model.player2Time )
+            else
+                let
+                    ( mode, newPlayer1Time, newPlayer2Time ) =
+                        case model.mode of
+                            Paused ->
+                                if
+                                    (model.player1Time |> Quantity.greaterThan Quantity.zero)
+                                        && (model.player2Time |> Quantity.greaterThan Quantity.zero)
+                                then
+                                    ( Running player, model.player1Time, model.player2Time )
 
-                        Running Player1 ->
-                            -- Player 1 finished turn, add increment to their time
-                            ( Running Player2, Quantity.plus model.player1Time model.increment, model.player2Time )
+                                else
+                                    ( Paused, model.player1Time, model.player2Time )
 
-                        Running Player2 ->
-                            -- Player 2 finished turn, add increment to their time
-                            ( Running Player1, model.player1Time, Quantity.plus model.player2Time model.increment )
-            in
-            ( { model | mode = mode, player1Time = newPlayer1Time, player2Time = newPlayer2Time } |> Ready
-            , Cmd.none
-            )
+                            Running Player1 ->
+                                -- Player 1 finished turn, add increment to their time
+                                ( Running Player2, Quantity.plus model.player1Time model.increment, model.player2Time )
+
+                            Running Player2 ->
+                                -- Player 2 finished turn, add increment to their time
+                                ( Running Player1, model.player1Time, Quantity.plus model.player2Time model.increment )
+                in
+                ( { model
+                    | mode = mode
+                    , player1Time = newPlayer1Time
+                    , player2Time = newPlayer2Time
+                    , lastSwitchedAt = model.lastTick
+                  }
+                    |> Ready
+                , Cmd.none
+                )
 
         Pause ->
             ( { model | mode = Paused } |> Ready

@@ -31,6 +31,7 @@ type alias ReadyData =
     , mode : Mode
     , lastTick : Time.Posix
     , increment : Duration
+    , lastSwitchedAt : Time.Posix
     }
 
 
