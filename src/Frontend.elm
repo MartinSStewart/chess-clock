@@ -49,11 +49,12 @@ setupInit key =
         { key = key
         , time = Duration.minutes 5
         , increment = 5
+        , vibrationEnabled = True
         }
 
 
-readyInit : Nav.Key -> Duration -> Duration -> FrontendModel
-readyInit key initialTime increment =
+readyInit : Nav.Key -> Duration -> Duration -> Bool -> FrontendModel
+readyInit key initialTime increment vibrationEnabled =
     { key = key
     , player1Time = initialTime
     , player2Time = initialTime
@@ -61,6 +62,7 @@ readyInit key initialTime increment =
     , lastTick = Time.millisToPosix 0
     , increment = increment
     , lastSwitchedAt = Time.millisToPosix 0
+    , vibrationEnabled = vibrationEnabled
     }
         |> Ready
 
@@ -183,13 +185,21 @@ updateSetupMsg msg model =
         AdjustedIncrementSlider value ->
             ( Setup { model | increment = value }, Cmd.none )
 
+        ToggledVibration ->
+            ( Setup { model | vibrationEnabled = not model.vibrationEnabled }, Cmd.none )
+
         PressedStart ->
             if model.time |> Quantity.greaterThan Quantity.zero then
                 ( readyInit
                     model.key
                     model.time
                     (incrementSliderValueToIncrement model.increment |> toFloat |> Duration.seconds)
-                , vibrate ()
+                    model.vibrationEnabled
+                , if model.vibrationEnabled then
+                    vibrate ()
+
+                  else
+                    Cmd.none
                 )
 
             else
@@ -232,7 +242,11 @@ updateReadyMsg msg model =
                     , lastSwitchedAt = model.lastTick
                   }
                     |> Ready
-                , vibrate ()
+                , if model.vibrationEnabled then
+                    vibrate ()
+
+                  else
+                    Cmd.none
                 )
 
         Pause ->
@@ -414,8 +428,37 @@ setupView model =
         , Attr.style "color" "#fff"
         , Attr.style "justify-content" "center"
         , Attr.style "align-items" "center"
+        , Attr.style "position" "relative"
         ]
-        [ Html.div
+        [ Html.button
+            [ Attr.style "position" "absolute"
+            , Attr.style "top" "20px"
+            , Attr.style "right" "20px"
+            , Attr.style "padding" "12px 16px"
+            , Attr.style "font-size" "16px"
+            , Attr.style "background-color"
+                (if model.vibrationEnabled then
+                    "#4CAF50"
+
+                 else
+                    "#666"
+                )
+            , Attr.style "color" "#fff"
+            , Attr.style "border" "none"
+            , Attr.style "border-radius" "8px"
+            , Attr.style "cursor" "pointer"
+            , Attr.style "font-family" "monospace"
+            , Events.onClick ToggledVibration
+            ]
+            [ Html.text
+                (if model.vibrationEnabled then
+                    "Vibration: ON"
+
+                 else
+                    "Vibration: OFF"
+                )
+            ]
+        , Html.div
             [ Attr.style "display" "flex"
             , Attr.style "flex-direction" "column"
             , Attr.style "align-items" "center"

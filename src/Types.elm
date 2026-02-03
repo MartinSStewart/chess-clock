@@ -21,6 +21,7 @@ type alias SetupData =
     { key : Key
     , time : Duration
     , increment : Int
+    , vibrationEnabled : Bool
     }
 
 
@@ -32,6 +33,7 @@ type alias ReadyData =
     , lastTick : Time.Posix
     , increment : Duration
     , lastSwitchedAt : Time.Posix
+    , vibrationEnabled : Bool
     }
 
 
@@ -58,6 +60,7 @@ type SetupMsg
     | PressedPlusTenSeconds
     | PressedMinusTenSeconds
     | AdjustedIncrementSlider Int
+    | ToggledVibration
     | PressedStart
 
 
