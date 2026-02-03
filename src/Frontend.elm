@@ -21,6 +21,9 @@ port requestWakeLock : () -> Cmd msg
 port releaseWakeLock : () -> Cmd msg
 
 
+port vibrate : () -> Cmd msg
+
+
 app =
     Lamdera.frontend
         { init = init
@@ -186,7 +189,7 @@ updateSetupMsg msg model =
                     model.key
                     model.time
                     (incrementSliderValueToIncrement model.increment |> toFloat |> Duration.seconds)
-                , Cmd.none
+                , vibrate ()
                 )
 
             else
