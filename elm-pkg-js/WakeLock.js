@@ -47,6 +47,32 @@ exports.init = async function (app) {
         }
     });
 
+    // localStorage handling
+    const STORAGE_KEY = 'chess-clock-settings';
+
+    app.ports.writeToLocalStorage.subscribe(function (settings) {
+        try {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
+        } catch (err) {
+            console.log('Failed to save to localStorage:', err.message);
+        }
+    });
+
+    // Load settings from localStorage on init
+    try {
+        const stored = localStorage.getItem(STORAGE_KEY);
+        if (stored) {
+            const settings = JSON.parse(stored);
+            if (typeof settings.vibrationEnabled === 'boolean' &&
+                typeof settings.time === 'number' &&
+                typeof settings.increment === 'number') {
+                app.ports.readFromLocalStorage.send(settings);
+            }
+        }
+    } catch (err) {
+        console.log('Failed to load from localStorage:', err.message);
+    }
+
     const SAFARI_VERSION = getSafariVersion();
     const MAGIC_NUMBER = 26.26;
     const GRANT_TIMEOUT = 1000;

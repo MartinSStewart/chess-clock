@@ -23,6 +23,12 @@ port releaseWakeLock : () -> Cmd msg
 port vibrate : () -> Cmd msg
 
 
+port writeToLocalStorage : LocalStorage -> Cmd msg
+
+
+port readFromLocalStorage : (LocalStorage -> msg) -> Sub msg
+
+
 app =
     Lamdera.frontend
         { init = init
@@ -68,12 +74,15 @@ readyInit key initialTime increment vibrationEnabled =
 
 subscriptions : FrontendModel -> Sub FrontendMsg
 subscriptions model =
-    case model of
-        Setup _ ->
-            Sub.none
+    Sub.batch
+        [ readFromLocalStorage GotSettingsFromLocalStorage
+        , case model of
+            Setup _ ->
+                Sub.none
 
-        Ready _ ->
-            Time.every 100 (\time -> Tick time |> ReadyMsg)
+            Ready _ ->
+                Time.every 100 (\time -> Tick time |> ReadyMsg)
+        ]
 
 
 update : FrontendMsg -> FrontendModel -> ( FrontendModel, Cmd FrontendMsg )
@@ -117,6 +126,21 @@ update msg model =
 
                 Ready readyData ->
                     updateReadyMsg readyMsg readyData
+
+        GotSettingsFromLocalStorage settings ->
+            case model of
+                Setup setup ->
+                    ( Setup
+                        { setup
+                            | vibrationEnabled = settings.vibrationEnabled
+                            , time = Duration.seconds (toFloat settings.time)
+                            , increment = settings.increment
+                        }
+                    , Cmd.none
+                    )
+
+                Ready _ ->
+                    ( model, Cmd.none )
     )
         |> (\( model2, cmd ) ->
                 ( model2
@@ -135,57 +159,84 @@ update msg model =
            )
 
 
+saveSettings : SetupData -> Cmd msg
+saveSettings setup =
+    writeToLocalStorage
+        { vibrationEnabled = setup.vibrationEnabled
+        , time = Duration.inSeconds setup.time |> round
+        , increment = setup.increment
+        }
+
+
 updateSetupMsg : SetupMsg -> SetupData -> ( FrontendModel, Cmd FrontendMsg )
 updateSetupMsg msg model =
     case msg of
         PressedPlusMinute ->
-            ( Setup
-                { model
-                    | time =
-                        if model.time |> Quantity.greaterThanOrEqualTo (Duration.minutes 10) then
-                            Quantity.plus model.time (Duration.minutes 5)
+            let
+                newModel =
+                    { model
+                        | time =
+                            if model.time |> Quantity.greaterThanOrEqualTo (Duration.minutes 10) then
+                                Quantity.plus model.time (Duration.minutes 5)
 
-                        else if model.time |> Quantity.greaterThanOrEqualTo (Duration.minutes 6) then
-                            Quantity.plus model.time (Duration.minutes 2)
+                            else if model.time |> Quantity.greaterThanOrEqualTo (Duration.minutes 6) then
+                                Quantity.plus model.time (Duration.minutes 2)
 
-                        else
-                            Quantity.plus model.time (Duration.minutes 1)
-                }
-            , Cmd.none
-            )
+                            else
+                                Quantity.plus model.time (Duration.minutes 1)
+                    }
+            in
+            ( Setup newModel, saveSettings newModel )
 
         PressedMinusMinute ->
-            ( Setup
-                { model
-                    | time =
-                        (if model.time |> Quantity.greaterThanOrEqualTo (Duration.minutes 15) then
-                            model.time |> Quantity.minus (Duration.minutes 5)
+            let
+                newModel =
+                    { model
+                        | time =
+                            (if model.time |> Quantity.greaterThanOrEqualTo (Duration.minutes 15) then
+                                model.time |> Quantity.minus (Duration.minutes 5)
 
-                         else if model.time |> Quantity.greaterThanOrEqualTo (Duration.minutes 8) then
-                            model.time |> Quantity.minus (Duration.minutes 2)
+                             else if model.time |> Quantity.greaterThanOrEqualTo (Duration.minutes 8) then
+                                model.time |> Quantity.minus (Duration.minutes 2)
 
-                         else if model.time |> Quantity.greaterThanOrEqualTo (Duration.minutes 1) then
-                            model.time |> Quantity.minus (Duration.minutes 1)
+                             else if model.time |> Quantity.greaterThanOrEqualTo (Duration.minutes 1) then
+                                model.time |> Quantity.minus (Duration.minutes 1)
 
-                         else
-                            model.time
-                        )
-                            |> Quantity.max Quantity.zero
-                }
-            , Cmd.none
-            )
+                             else
+                                model.time
+                            )
+                                |> Quantity.max Quantity.zero
+                    }
+            in
+            ( Setup newModel, saveSettings newModel )
 
         PressedPlusTenSeconds ->
-            ( Setup { model | time = Quantity.plus model.time (Duration.seconds 10) }, Cmd.none )
+            let
+                newModel =
+                    { model | time = Quantity.plus model.time (Duration.seconds 10) }
+            in
+            ( Setup newModel, saveSettings newModel )
 
         PressedMinusTenSeconds ->
-            ( Setup { model | time = Quantity.max Quantity.zero (model.time |> Quantity.minus (Duration.seconds 10)) }, Cmd.none )
+            let
+                newModel =
+                    { model | time = Quantity.max Quantity.zero (model.time |> Quantity.minus (Duration.seconds 10)) }
+            in
+            ( Setup newModel, saveSettings newModel )
 
         AdjustedIncrementSlider value ->
-            ( Setup { model | increment = value }, Cmd.none )
+            let
+                newModel =
+                    { model | increment = value }
+            in
+            ( Setup newModel, saveSettings newModel )
 
         ToggledVibration ->
-            ( Setup { model | vibrationEnabled = not model.vibrationEnabled }, Cmd.none )
+            let
+                newModel =
+                    { model | vibrationEnabled = not model.vibrationEnabled }
+            in
+            ( Setup newModel, saveSettings newModel )
 
         PressedStart ->
             if model.time |> Quantity.greaterThan Quantity.zero then
