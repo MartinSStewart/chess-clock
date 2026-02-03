@@ -7,7 +7,7 @@ import Duration exposing (Duration)
 import Html exposing (Html)
 import Html.Attributes as Attr
 import Html.Events as Events
-import Json.Decode as Json
+import Json.Decode
 import Lamdera
 import Quantity
 import Time
@@ -232,7 +232,7 @@ updateReadyMsg msg model =
                     , lastSwitchedAt = model.lastTick
                   }
                     |> Ready
-                , Cmd.none
+                , vibrate ()
                 )
 
         Pause ->
@@ -681,7 +681,7 @@ viewTimer model player =
         , Attr.style "color" "#fff"
         , Attr.style "cursor" "pointer"
         , Attr.style "transition" "background-color 0.2s"
-        , Events.onMouseDown (PlayerClicked player)
+        , Events.on "pointerdown" (Json.Decode.succeed (PlayerClicked player))
         ]
         ((if time |> Quantity.greaterThan Quantity.zero then
             Html.div
