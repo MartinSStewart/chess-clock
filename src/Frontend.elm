@@ -1,12 +1,11 @@
-port module Frontend exposing (..)
+port module Frontend exposing (app)
 
 import Browser exposing (UrlRequest(..))
-import Browser.Events
-import Browser.Navigation as Nav
+import Browser.Navigation
 import Duration exposing (Duration)
 import Html exposing (Html)
 import Html.Attributes as Attr
-import Html.Events as Events
+import Html.Events
 import Json.Decode
 import Lamdera
 import Quantity
@@ -36,14 +35,14 @@ app =
         }
 
 
-init : Url.Url -> Nav.Key -> ( FrontendModel, Cmd FrontendMsg )
+init : Url.Url -> Browser.Navigation.Key -> ( FrontendModel, Cmd FrontendMsg )
 init url key =
     ( setupInit key
     , Cmd.none
     )
 
 
-setupInit : Nav.Key -> FrontendModel
+setupInit : Browser.Navigation.Key -> FrontendModel
 setupInit key =
     Setup
         { key = key
@@ -53,7 +52,7 @@ setupInit key =
         }
 
 
-readyInit : Nav.Key -> Duration -> Duration -> Bool -> FrontendModel
+readyInit : Browser.Navigation.Key -> Duration -> Duration -> Bool -> FrontendModel
 readyInit key initialTime increment vibrationEnabled =
     { key = key
     , player1Time = initialTime
@@ -84,7 +83,7 @@ update msg model =
             case urlRequest of
                 Internal url ->
                     ( model
-                    , Nav.pushUrl
+                    , Browser.Navigation.pushUrl
                         (case model of
                             Setup setup ->
                                 setup.key
@@ -97,7 +96,7 @@ update msg model =
 
                 External url ->
                     ( model
-                    , Nav.load url
+                    , Browser.Navigation.load url
                     )
 
         UrlChanged url ->
@@ -341,25 +340,6 @@ formatTime duration =
     String.fromInt minutes ++ ":" ++ padZero seconds
 
 
-parseTimeInput : String -> Maybe Int
-parseTimeInput input =
-    case String.split ":" input |> List.map String.trim of
-        [ "", secStr ] ->
-            Maybe.map (\s -> s * 1000) (String.toInt secStr)
-
-        [ minStr, secStr ] ->
-            Maybe.map2
-                (\m s -> (m * 60 + s) * 1000)
-                (String.toInt minStr)
-                (String.toInt secStr)
-
-        [ secStr ] ->
-            Maybe.map (\s -> s * 1000) (String.toInt secStr)
-
-        _ ->
-            Nothing
-
-
 view : FrontendModel -> Browser.Document FrontendMsg
 view model =
     { title = "Chess Clock"
@@ -448,7 +428,7 @@ setupView model =
             , Attr.style "border-radius" "8px"
             , Attr.style "cursor" "pointer"
             , Attr.style "font-family" "monospace"
-            , Events.onClick ToggledVibration
+            , Html.Events.onClick ToggledVibration
             ]
             [ Html.text
                 (if model.vibrationEnabled then
@@ -530,7 +510,7 @@ setupView model =
                     , Attr.value (String.fromInt model.increment)
                     , Attr.style "width" "200px"
                     , Attr.style "cursor" "pointer"
-                    , Events.onInput (\s -> AdjustedIncrementSlider (Maybe.withDefault 0 (String.toInt s)))
+                    , Html.Events.onInput (\s -> AdjustedIncrementSlider (Maybe.withDefault 0 (String.toInt s)))
                     ]
                     []
                 ]
@@ -556,7 +536,7 @@ setupView model =
                     )
                 , Attr.style "font-family" "monospace"
                 , Attr.style "margin-top" "30px"
-                , Events.onClick PressedStart
+                , Html.Events.onClick PressedStart
                 ]
                 [ Html.text "Start" ]
             ]
@@ -637,7 +617,7 @@ arrowButton label msg =
         , Attr.style "border-radius" "8px"
         , Attr.style "cursor" "pointer"
         , Attr.style "font-family" "monospace"
-        , Events.onClick msg
+        , Html.Events.onClick msg
         ]
         [ Html.text label ]
 
@@ -663,7 +643,7 @@ viewControls model =
                     , Attr.style "border-radius" "8px"
                     , Attr.style "cursor" "pointer"
                     , Attr.style "font-family" "monospace"
-                    , Events.onClick Pause
+                    , Html.Events.onClick Pause
                     ]
                     [ Html.text "Pause" ]
                 ]
@@ -678,7 +658,7 @@ viewControls model =
                     , Attr.style "border-radius" "8px"
                     , Attr.style "cursor" "pointer"
                     , Attr.style "font-family" "monospace"
-                    , Events.onClick Reset
+                    , Html.Events.onClick Reset
                     ]
                     [ Html.text "Reset" ]
                 ]
@@ -724,7 +704,7 @@ viewTimer model player =
         , Attr.style "color" "#fff"
         , Attr.style "cursor" "pointer"
         , Attr.style "transition" "background-color 0.2s"
-        , Events.on "pointerdown" (Json.Decode.succeed (PlayerClicked player))
+        , Html.Events.on "pointerdown" (Json.Decode.succeed (PlayerClicked player))
         ]
         ((if time |> Quantity.greaterThan Quantity.zero then
             Html.div
