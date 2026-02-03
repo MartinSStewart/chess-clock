@@ -681,7 +681,7 @@ viewTimer model player =
         , Attr.style "color" "#fff"
         , Attr.style "cursor" "pointer"
         , Attr.style "transition" "background-color 0.2s"
-        , Events.onClick (PlayerClicked player)
+        , Events.onMouseDown (PlayerClicked player)
         ]
         ((if time |> Quantity.greaterThan Quantity.zero then
             Html.div
