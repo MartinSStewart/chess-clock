@@ -52,7 +52,11 @@ type FrontendMsg
     | UrlChanged Url
     | SetupMsg SetupMsg
     | ReadyMsg ReadyMsg
-    | GotSettingsFromLocalStorage { vibrationEnabled : Bool, time : Int, increment : Int }
+    | GotSettingsFromLocalStorage LocalStorage
+
+
+type alias LocalStorage =
+    { vibrationEnabled : Bool, time : Int, increment : Int }
 
 
 type SetupMsg

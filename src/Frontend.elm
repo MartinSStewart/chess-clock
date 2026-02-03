@@ -23,10 +23,10 @@ port releaseWakeLock : () -> Cmd msg
 port vibrate : () -> Cmd msg
 
 
-port writeToLocalStorage : { vibrationEnabled : Bool, time : Int, increment : Int } -> Cmd msg
+port writeToLocalStorage : LocalStorage -> Cmd msg
 
 
-port readFromLocalStorage : ({ vibrationEnabled : Bool, time : Int, increment : Int } -> msg) -> Sub msg
+port readFromLocalStorage : (LocalStorage -> msg) -> Sub msg
 
 
 app =
@@ -133,7 +133,7 @@ update msg model =
                     ( Setup
                         { setup
                             | vibrationEnabled = settings.vibrationEnabled
-                            , time = Duration.milliseconds (toFloat settings.time)
+                            , time = Duration.seconds (toFloat settings.time)
                             , increment = settings.increment
                         }
                     , Cmd.none
@@ -163,7 +163,7 @@ saveSettings : SetupData -> Cmd msg
 saveSettings setup =
     writeToLocalStorage
         { vibrationEnabled = setup.vibrationEnabled
-        , time = Duration.inMilliseconds setup.time |> round
+        , time = Duration.inSeconds setup.time |> round
         , increment = setup.increment
         }
 
