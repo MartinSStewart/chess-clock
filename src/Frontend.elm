@@ -393,7 +393,7 @@ formatTime duration =
 
 view : FrontendModel -> Browser.Document FrontendMsg
 view model =
-    { title = "Chess Clock"
+    { title = "Chess clock"
     , body =
         [ Html.node "style"
             []
