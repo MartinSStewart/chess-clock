@@ -68,6 +68,7 @@ readyInit key initialTime increment vibrationEnabled =
     , increment = increment
     , lastSwitchedAt = Time.millisToPosix 0
     , vibrationEnabled = vibrationEnabled
+    , totalElapsed = Quantity.zero
     }
         |> Ready
 
@@ -329,11 +330,20 @@ updateReadyMsg msg model =
 
                         Paused ->
                             ( model.player1Time, model.player2Time )
+
+                newTotalElapsed =
+                    case model.mode of
+                        Running _ ->
+                            Quantity.plus model.totalElapsed elapsed
+
+                        Paused ->
+                            model.totalElapsed
             in
             ( { model
                 | player1Time = newPlayer1Time
                 , player2Time = newPlayer2Time
                 , lastTick = currentTime
+                , totalElapsed = newTotalElapsed
                 , mode =
                     case ( (newPlayer1Time |> Quantity.lessThanOrEqualTo Quantity.zero) || (newPlayer2Time |> Quantity.lessThanOrEqualTo Quantity.zero), model.mode ) of
                         ( True, Running _ ) ->
@@ -391,6 +401,35 @@ formatTime duration =
     String.fromInt minutes ++ ":" ++ padZero seconds
 
 
+formatElapsed : Duration -> String
+formatElapsed duration =
+    let
+        totalSeconds =
+            Duration.inSeconds duration |> floor
+
+        hours =
+            totalSeconds // 3600
+
+        minutes =
+            modBy 60 (totalSeconds // 60)
+
+        seconds =
+            modBy 60 totalSeconds
+
+        padZero n =
+            if n < 10 then
+                "0" ++ String.fromInt n
+
+            else
+                String.fromInt n
+    in
+    if hours > 0 then
+        String.fromInt hours ++ ":" ++ padZero minutes ++ ":" ++ padZero seconds
+
+    else
+        padZero minutes ++ ":" ++ padZero seconds
+
+
 view : FrontendModel -> Browser.Document FrontendMsg
 view model =
     { title = "Chess clock"
@@ -438,6 +477,7 @@ view model =
                         []
                     , viewTimer ready Player2
                     , viewControls ready
+                    , viewTotalElapsed ready
                     ]
                     |> Html.map ReadyMsg
         ]
@@ -671,6 +711,25 @@ arrowButton label msg =
         , Html.Events.onClick msg
         ]
         [ Html.text label ]
+
+
+viewTotalElapsed : ReadyData -> Html ReadyMsg
+viewTotalElapsed model =
+    Html.div
+        [ Attr.style "position" "absolute"
+        , Attr.style "top" "50%"
+        , Attr.style "left" "50%"
+        , Attr.style "transform" "translate(-50%, -50%)"
+        , Attr.style "padding" "4px 12px"
+        , Attr.style "background-color" "rgba(0, 0, 0, 0.5)"
+        , Attr.style "color" "#fff"
+        , Attr.style "font-size" "16px"
+        , Attr.style "font-family" "monospace"
+        , Attr.style "border-radius" "12px"
+        , Attr.style "pointer-events" "none"
+        , Attr.style "opacity" "0.8"
+        ]
+        [ Html.text (formatElapsed model.totalElapsed) ]
 
 
 viewControls : ReadyData -> Html ReadyMsg

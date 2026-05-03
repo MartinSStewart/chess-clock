@@ -34,6 +34,7 @@ type alias ReadyData =
     , increment : Duration
     , lastSwitchedAt : Time.Posix
     , vibrationEnabled : Bool
+    , totalElapsed : Duration
     }
 
 
