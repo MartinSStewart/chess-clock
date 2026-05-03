@@ -21,7 +21,6 @@ type alias SetupData =
     { key : Key
     , time : Duration
     , increment : Int
-    , vibrationEnabled : Bool
     }
 
 
@@ -33,7 +32,6 @@ type alias ReadyData =
     , lastTick : Time.Posix
     , increment : Duration
     , lastSwitchedAt : Time.Posix
-    , vibrationEnabled : Bool
     , totalElapsed : Duration
     }
 
@@ -57,7 +55,7 @@ type FrontendMsg
 
 
 type alias LocalStorage =
-    { vibrationEnabled : Bool, time : Int, increment : Int }
+    { time : Int, increment : Int }
 
 
 type SetupMsg
@@ -66,7 +64,6 @@ type SetupMsg
     | PressedPlusTenSeconds
     | PressedMinusTenSeconds
     | AdjustedIncrementSlider Int
-    | ToggledVibration
     | PressedStart
 
 
