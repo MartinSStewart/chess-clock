@@ -77,7 +77,7 @@ subscriptions model =
                 Sub.none
 
             Ready _ ->
-                Time.every 100 (\time -> Tick time |> ReadyMsg)
+                Time.every 1000 (\time -> Tick time |> ReadyMsg)
         ]
 
 
@@ -307,20 +307,18 @@ updateReadyMsg msg model =
 
                         Paused ->
                             ( model.player1Time, model.player2Time )
-
-                newTotalElapsed =
+            in
+            ( { model
+                | player1Time = newPlayer1Time
+                , player2Time = newPlayer2Time
+                , lastTick = currentTime
+                , totalElapsed =
                     case model.mode of
                         Running _ ->
                             Quantity.plus model.totalElapsed elapsed
 
                         Paused ->
                             model.totalElapsed
-            in
-            ( { model
-                | player1Time = newPlayer1Time
-                , player2Time = newPlayer2Time
-                , lastTick = currentTime
-                , totalElapsed = newTotalElapsed
                 , mode =
                     case ( (newPlayer1Time |> Quantity.lessThanOrEqualTo Quantity.zero) || (newPlayer2Time |> Quantity.lessThanOrEqualTo Quantity.zero), model.mode ) of
                         ( True, Running _ ) ->
@@ -670,13 +668,12 @@ viewTotalElapsed model =
         , Attr.style "left" "50%"
         , Attr.style "transform" "translate(-50%, -50%)"
         , Attr.style "padding" "4px 12px"
-        , Attr.style "background-color" "rgba(0, 0, 0, 0.5)"
+        , Attr.style "background-color" "#5a5a5a"
         , Attr.style "color" "#fff"
         , Attr.style "font-size" "16px"
         , Attr.style "font-family" "monospace"
         , Attr.style "border-radius" "12px"
         , Attr.style "pointer-events" "none"
-        , Attr.style "opacity" "0.8"
         ]
         [ Html.text (formatElapsed model.totalElapsed) ]
 
