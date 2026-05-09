@@ -26,6 +26,9 @@ port writeToLocalStorage : LocalStorage -> Cmd msg
 port readFromLocalStorage : (LocalStorage -> msg) -> Sub msg
 
 
+port playClickSound : () -> Cmd msg
+
+
 app =
     Lamdera.frontend
         { init = init
@@ -51,11 +54,12 @@ setupInit key =
         { key = key
         , time = Duration.minutes 5
         , increment = 5
+        , soundEnabled = True
         }
 
 
-readyInit : Browser.Navigation.Key -> Duration -> Duration -> FrontendModel
-readyInit key initialTime increment =
+readyInit : Browser.Navigation.Key -> Duration -> Duration -> Bool -> FrontendModel
+readyInit key initialTime increment soundEnabled =
     { key = key
     , player1Time = initialTime
     , player2Time = initialTime
@@ -64,6 +68,7 @@ readyInit key initialTime increment =
     , increment = increment
     , lastSwitchedAt = Time.millisToPosix 0
     , totalElapsed = Quantity.zero
+    , soundEnabled = soundEnabled
     }
         |> Ready
 
@@ -130,6 +135,7 @@ update msg model =
                         { setup
                             | time = Duration.seconds (toFloat settings.time)
                             , increment = settings.increment
+                            , soundEnabled = settings.soundEnabled
                         }
                     , Cmd.none
                     )
@@ -159,6 +165,7 @@ saveSettings setup =
     writeToLocalStorage
         { time = Duration.inSeconds setup.time |> round
         , increment = setup.increment
+        , soundEnabled = setup.soundEnabled
         }
 
 
@@ -225,12 +232,20 @@ updateSetupMsg msg model =
             in
             ( Setup newModel, saveSettings newModel )
 
+        ToggledSound ->
+            let
+                newModel =
+                    { model | soundEnabled = not model.soundEnabled }
+            in
+            ( Setup newModel, saveSettings newModel )
+
         PressedStart ->
             if model.time |> Quantity.greaterThan Quantity.zero then
                 ( readyInit
                     model.key
                     model.time
                     (incrementSliderValueToIncrement model.increment |> toFloat |> Duration.seconds)
+                    model.soundEnabled
                 , Cmd.none
                 )
 
@@ -274,7 +289,11 @@ updateReadyMsg msg model =
                     , lastSwitchedAt = model.lastTick
                   }
                     |> Ready
-                , Cmd.none
+                , if model.soundEnabled && mode /= model.mode then
+                    playClickSound ()
+
+                  else
+                    Cmd.none
                 )
 
         Pause ->
@@ -551,6 +570,31 @@ setupView model =
                     , Html.Events.onInput (\s -> AdjustedIncrementSlider (Maybe.withDefault 0 (String.toInt s)))
                     ]
                     []
+                ]
+            , Html.button
+                [ Attr.style "padding" "12px 24px"
+                , Attr.style "font-size" "18px"
+                , Attr.style "background-color"
+                    (if model.soundEnabled then
+                        "#4CAF50"
+
+                     else
+                        "#333"
+                    )
+                , Attr.style "color" "#fff"
+                , Attr.style "border" "none"
+                , Attr.style "border-radius" "8px"
+                , Attr.style "cursor" "pointer"
+                , Attr.style "font-family" "monospace"
+                , Html.Events.onClick ToggledSound
+                ]
+                [ Html.text
+                    (if model.soundEnabled then
+                        "Click sound: On"
+
+                     else
+                        "Click sound: Off"
+                    )
                 ]
             , Html.button
                 [ Attr.style "padding" "20px 60px"

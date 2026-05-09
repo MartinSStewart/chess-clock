@@ -21,6 +21,7 @@ type alias SetupData =
     { key : Key
     , time : Duration
     , increment : Int
+    , soundEnabled : Bool
     }
 
 
@@ -33,6 +34,7 @@ type alias ReadyData =
     , increment : Duration
     , lastSwitchedAt : Time.Posix
     , totalElapsed : Duration
+    , soundEnabled : Bool
     }
 
 
@@ -55,7 +57,7 @@ type FrontendMsg
 
 
 type alias LocalStorage =
-    { time : Int, increment : Int }
+    { time : Int, increment : Int, soundEnabled : Bool }
 
 
 type SetupMsg
@@ -64,6 +66,7 @@ type SetupMsg
     | PressedPlusTenSeconds
     | PressedMinusTenSeconds
     | AdjustedIncrementSlider Int
+    | ToggledSound
     | PressedStart
 
 

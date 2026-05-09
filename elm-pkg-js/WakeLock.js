@@ -57,13 +57,47 @@ exports.init = async function (app) {
         const stored = localStorage.getItem(STORAGE_KEY);
         if (stored) {
             const settings = JSON.parse(stored);
-            if (typeof settings.vibrationEnabled === 'boolean' &&
-                typeof settings.time === 'number' &&
+            if (typeof settings.time === 'number' &&
                 typeof settings.increment === 'number') {
-                app.ports.readFromLocalStorage.send(settings);
+                app.ports.readFromLocalStorage.send({
+                    time: settings.time,
+                    increment: settings.increment,
+                    soundEnabled: typeof settings.soundEnabled === 'boolean' ? settings.soundEnabled : true
+                });
             }
         }
     } catch (err) {
         console.log('Failed to load from localStorage:', err.message);
     }
+
+    // Click sound via Web Audio API
+    let audioCtx = null;
+
+    app.ports.playClickSound.subscribe(function () {
+        try {
+            if (audioCtx === null) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+            const now = audioCtx.currentTime;
+
+            // Short percussive click using a quick oscillator burst
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = 'square';
+            osc.frequency.setValueAtTime(1800, now);
+            osc.frequency.exponentialRampToValueAtTime(600, now + 0.04);
+            gain.gain.setValueAtTime(0.0001, now);
+            gain.gain.exponentialRampToValueAtTime(0.25, now + 0.002);
+            gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.05);
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.start(now);
+            osc.stop(now + 0.06);
+        } catch (err) {
+            console.log('Failed to play click sound:', err.message);
+        }
+    });
 };
