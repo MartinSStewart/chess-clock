@@ -86,16 +86,21 @@ exports.init = async function (app) {
             // Short percussive click using a quick oscillator burst
             const osc = audioCtx.createOscillator();
             const gain = audioCtx.createGain();
-            osc.type = 'square';
-            osc.frequency.setValueAtTime(1800, now);
-            osc.frequency.exponentialRampToValueAtTime(600, now + 0.04);
+            const filter = audioCtx.createBiquadFilter();
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(500, now);
+            osc.frequency.exponentialRampToValueAtTime(120, now + 0.05);
+            filter.type = 'lowpass';
+            filter.frequency.setValueAtTime(1200, now);
+            filter.Q.setValueAtTime(0.7, now);
             gain.gain.setValueAtTime(0.0001, now);
-            gain.gain.exponentialRampToValueAtTime(0.25, now + 0.002);
-            gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.05);
-            osc.connect(gain);
+            gain.gain.exponentialRampToValueAtTime(0.35, now + 0.003);
+            gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.07);
+            osc.connect(filter);
+            filter.connect(gain);
             gain.connect(audioCtx.destination);
             osc.start(now);
-            osc.stop(now + 0.06);
+            osc.stop(now + 0.08);
         } catch (err) {
             console.log('Failed to play click sound:', err.message);
         }
