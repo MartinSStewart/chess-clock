@@ -30,14 +30,6 @@ exports.init = async function (app) {
         }
     });
 
-    // Periodically verify the wake lock is still held. Some browsers release
-    // it without firing a release event, or in conditions we can't observe.
-    setInterval(() => {
-        if (wakeLockRequested && wakeLock === null && document.visibilityState === 'visible') {
-            acquireWakeLock();
-        }
-    }, 15000);
-
     app.ports.requestWakeLock.subscribe(async function () {
         wakeLockRequested = true;
         await acquireWakeLock();

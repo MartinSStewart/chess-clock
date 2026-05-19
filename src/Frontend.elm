@@ -83,6 +83,11 @@ subscriptions model =
 
             Ready _ ->
                 Time.every 1000 (\time -> Tick time |> ReadyMsg)
+        , if shouldEnableWakeLock model then
+            Time.every 15000 (\_ -> RefreshWakeLock)
+
+          else
+            Sub.none
         ]
 
 
@@ -142,6 +147,15 @@ update msg model =
 
                 Ready _ ->
                     ( model, Cmd.none )
+
+        RefreshWakeLock ->
+            ( model
+            , if shouldEnableWakeLock model then
+                requestWakeLock ()
+
+              else
+                Cmd.none
+            )
     )
         |> (\( model2, cmd ) ->
                 ( model2

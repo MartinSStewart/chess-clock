@@ -54,6 +54,7 @@ type FrontendMsg
     | SetupMsg SetupMsg
     | ReadyMsg ReadyMsg
     | GotSettingsFromLocalStorage LocalStorage
+    | RefreshWakeLock
 
 
 type alias LocalStorage =
