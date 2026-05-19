@@ -3,11 +3,17 @@ exports.init = async function (app) {
     let wakeLockRequested = false;
 
     async function acquireWakeLock() {
-        if ('wakeLock' in navigator && wakeLockRequested) {
+        if ('wakeLock' in navigator && wakeLockRequested && wakeLock === null) {
             try {
                 wakeLock = await navigator.wakeLock.request('screen');
                 wakeLock.addEventListener('release', () => {
                     wakeLock = null;
+                    // Browsers auto-release the lock for reasons like visibility
+                    // change or power pressure. If we still want it and the page
+                    // is visible, re-acquire immediately.
+                    if (wakeLockRequested && document.visibilityState === 'visible') {
+                        acquireWakeLock();
+                    }
                 });
             } catch (err) {
                 // Wake lock request failed - usually happens when document is not visible
@@ -23,6 +29,14 @@ exports.init = async function (app) {
             await acquireWakeLock();
         }
     });
+
+    // Periodically verify the wake lock is still held. Some browsers release
+    // it without firing a release event, or in conditions we can't observe.
+    setInterval(() => {
+        if (wakeLockRequested && wakeLock === null && document.visibilityState === 'visible') {
+            acquireWakeLock();
+        }
+    }, 15000);
 
     app.ports.requestWakeLock.subscribe(async function () {
         wakeLockRequested = true;
